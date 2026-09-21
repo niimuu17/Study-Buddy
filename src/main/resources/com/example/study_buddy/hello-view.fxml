@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox alignment="TOP_CENTER" prefHeight="700.0" prefWidth="1000.0" spacing="16.0"
+      stylesheets="@styles.css" styleClass="main-container"
+      xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.example.study_buddy.HelloController">
+    <padding>
+        <Insets bottom="20.0" left="24.0" right="24.0" top="18.0" />
+    </padding>
+
+    <!-- Top Header Bar -->
+    <HBox alignment="CENTER_LEFT" spacing="14.0" style="-fx-background-color: #ffffff; -fx-padding: 14px 20px; -fx-background-radius: 10px; -fx-border-color: #e2e8f0; -fx-border-radius: 10px;">
+        <VBox spacing="2.0">
+            <Label styleClass="form-title" text="Study Buddy 🎓" />
+            <Label fx:id="welcomeText" style="-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #4f46e5;" text="Welcome to your Class Routine!" />
+            <Label fx:id="userDetailText" style="-fx-font-size: 12px; -fx-text-fill: #64748b;" text="Connected" />
+        </VBox>
+
+        <Region HBox.hgrow="ALWAYS" />
+
+        <!-- Schedule Configuration Controls -->
+        <HBox alignment="CENTER" spacing="8.0">
+            <Button onAction="#handleAddWeekday" style="-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 7px 12px;" text="+ Add Weekday" />
+            <Button onAction="#handleRemoveWeekday" style="-fx-background-color: #f1f5f9; -fx-text-fill: #64748b; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 7px 12px;" text="- Remove Day" />
+            <Button onAction="#handleAddTimeSlot" style="-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 7px 12px;" text="+ Add Time Slot" />
+            <Button onAction="#handleRemoveTimeSlot" style="-fx-background-color: #f1f5f9; -fx-text-fill: #64748b; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 7px 12px;" text="- Remove Slot" />
+        </HBox>
+
+        <Region prefWidth="12.0" />
+
+        <Button fx:id="logoutButton" onAction="#handleLogout" styleClass="btn-logout" text="Log Out" />
+    </HBox>
+
+    <!-- Routine Grid Section with ScrollPane for whole-screen responsiveness -->
+    <ScrollPane fitToHeight="true" fitToWidth="true" VBox.vgrow="ALWAYS"
+                style="-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: #cbd5e1; -fx-border-radius: 10px;">
+        <VBox alignment="TOP_CENTER" spacing="10.0" style="-fx-background-color: #ffffff; -fx-padding: 16px; -fx-background-radius: 10px;">
+            <HBox alignment="CENTER_LEFT" spacing="10.0">
+                <Label style="-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" text="Weekly Class Routine" />
+                <Label style="-fx-font-size: 12px; -fx-text-fill: #64748b;" text="💡 Click on any cell to edit subject, teacher code, or add CT / assignment deadlines." />
+            </HBox>
+
+            <GridPane fx:id="routineGrid" alignment="TOP_LEFT" hgap="10.0" vgap="10.0">
+                <!-- Dynamically built in HelloController -->
+            </GridPane>
+        </VBox>
+    </ScrollPane>
+
+</VBox>

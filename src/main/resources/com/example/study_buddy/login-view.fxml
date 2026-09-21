@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<StackPane alignment="CENTER" stylesheets="@styles.css" styleClass="main-container"
+           xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="com.example.study_buddy.LoginController">
+
+    <!-- Centered Card Container for Full-Screen Mode -->
+    <HBox alignment="CENTER" maxHeight="540.0" maxWidth="800.0"
+          style="-fx-background-radius: 14px; -fx-effect: dropshadow(three-pass-box, rgba(15, 23, 42, 0.12), 20, 0, 0, 6); -fx-background-color: #ffffff;">
+
+        <!-- Left Brand Sidebar -->
+        <VBox alignment="CENTER" prefWidth="300.0" spacing="16.0" styleClass="brand-panel"
+              style="-fx-background-radius: 14px 0 0 14px;" HBox.hgrow="NEVER">
+            <Label styleClass="brand-title" text="Study Buddy" />
+            <Label styleClass="brand-badge" text="📚 SQLite Powered" />
+            <Label alignment="CENTER" styleClass="brand-subtitle"
+                   text="Organize your weekly classes,&#10;track deadlines, and succeed."
+                   textAlignment="CENTER" />
+        </VBox>
+
+        <!-- Right Content: Switchable Cards for Login and Sign Up -->
+        <StackPane HBox.hgrow="ALWAYS" style="-fx-background-radius: 0 14px 14px 0;">
+            <!-- Card 1: Login Form -->
+            <VBox fx:id="loginCard" alignment="CENTER_LEFT" spacing="12.0" styleClass="card-panel"
+                  style="-fx-background-radius: 0 14px 14px 0;">
+                <padding>
+                    <Insets bottom="30.0" left="40.0" right="40.0" top="30.0" />
+                </padding>
+
+                <Label styleClass="form-title" text="Welcome Back 👋" />
+                <Label styleClass="form-subtitle" text="Sign in using your Username or Gmail address." />
+
+                <!-- Feedback Message -->
+                <Label fx:id="loginMessageLabel" wrapText="true" />
+
+                <VBox spacing="6.0">
+                    <Label styleClass="field-label" text="Username or Gmail" />
+                    <TextField fx:id="loginIdentifierField" promptText="e.g. john_doe or john@gmail.com" />
+                </VBox>
+
+                <VBox spacing="6.0">
+                    <Label styleClass="field-label" text="Password" />
+                    <PasswordField fx:id="loginPasswordField" promptText="Enter your password" />
+                </VBox>
+
+                <Button fx:id="loginButton" maxWidth="Infinity" onAction="#handleLogin" styleClass="btn-primary" text="Log In" />
+
+                <HBox alignment="CENTER" spacing="6.0">
+                    <Label text="Don't have an account?" />
+                    <Button onAction="#showSignUpCard" styleClass="btn-link" text="Sign Up" />
+                </HBox>
+            </VBox>
+
+            <!-- Card 2: Sign Up Form -->
+            <VBox fx:id="signupCard" alignment="CENTER_LEFT" managed="false" spacing="8.0" styleClass="card-panel"
+                  visible="false" style="-fx-background-radius: 0 14px 14px 0;">
+                <padding>
+                    <Insets bottom="25.0" left="40.0" right="40.0" top="25.0" />
+                </padding>
+
+                <Label styleClass="form-title" text="Create Account 🎓" />
+                <Label styleClass="form-subtitle" text="Register with your Gmail and set a strong password." />
+
+                <!-- Feedback Message -->
+                <Label fx:id="signupMessageLabel" wrapText="true" />
+
+                <VBox spacing="3.0">
+                    <Label styleClass="field-label" text="Gmail Address" />
+                    <TextField fx:id="signupEmailField" promptText="e.g. yourname@gmail.com" />
+                </VBox>
+
+                <VBox spacing="3.0">
+                    <Label styleClass="field-label" text="Username" />
+                    <TextField fx:id="signupUsernameField" promptText="Choose a username" />
+                </VBox>
+
+                <VBox spacing="3.0">
+                    <Label styleClass="field-label" text="Set Password" />
+                    <PasswordField fx:id="signupPasswordField" promptText="Min 8 chars (e.g. Study@2026)" />
+                    <Label styleClass="field-hint" text="Must have at least 8 chars, 1 uppercase, 1 digit &amp; 1 symbol." />
+                </VBox>
+
+                <VBox spacing="3.0">
+                    <Label styleClass="field-label" text="Confirm Password" />
+                    <PasswordField fx:id="signupConfirmPasswordField" promptText="Re-enter your password" />
+                </VBox>
+
+                <Button fx:id="signupButton" maxWidth="Infinity" onAction="#handleSignUp" styleClass="btn-primary" text="Sign Up" />
+
+                <HBox alignment="CENTER" spacing="6.0">
+                    <Label text="Already have an account?" />
+                    <Button onAction="#showLoginCard" styleClass="btn-link" text="Log In" />
+                </HBox>
+            </VBox>
+        </StackPane>
+    </HBox>
+</StackPane>

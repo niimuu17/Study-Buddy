@@ -1,0 +1,150 @@
+/* Modern & Clean Styling for Study Buddy */
+
+.root {
+    -fx-font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    -fx-background-color: #f1f5f9;
+}
+
+/* Background container */
+.main-container {
+    -fx-background-color: linear-gradient(to bottom right, #f8fafc, #e2e8f0);
+}
+
+/* Sidebar / Branding */
+.brand-panel {
+    -fx-background-color: linear-gradient(to bottom right, #312e81, #4338ca, #4f46e5);
+    -fx-padding: 35px;
+    -fx-alignment: center;
+}
+
+.brand-title {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 26px;
+    -fx-font-weight: bold;
+}
+
+.brand-subtitle {
+    -fx-text-fill: #c7d2fe;
+    -fx-font-size: 13px;
+}
+
+.brand-badge {
+    -fx-background-color: rgba(255, 255, 255, 0.15);
+    -fx-background-radius: 20px;
+    -fx-padding: 6px 14px;
+    -fx-text-fill: #e0e7ff;
+    -fx-font-size: 12px;
+}
+
+/* Card layout */
+.card-panel {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 0px;
+    -fx-padding: 30px 40px;
+}
+
+/* Form Headings */
+.form-title {
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1e293b;
+}
+
+.form-subtitle {
+    -fx-font-size: 13px;
+    -fx-text-fill: #64748b;
+}
+
+/* Field labels */
+.field-label {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #334155;
+}
+
+/* Text and Password Fields */
+.text-input {
+    -fx-background-color: #f8fafc;
+    -fx-background-radius: 8px;
+    -fx-border-color: #cbd5e1;
+    -fx-border-radius: 8px;
+    -fx-border-width: 1.2px;
+    -fx-padding: 9px 12px;
+    -fx-font-size: 13px;
+    -fx-text-fill: #0f172a;
+}
+
+.text-input:focused {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #4f46e5;
+    -fx-effect: dropshadow(three-pass-box, rgba(79, 70, 229, 0.25), 6, 0, 0, 0);
+}
+
+/* Primary Action Buttons */
+.btn-primary {
+    -fx-background-color: linear-gradient(to right, #4f46e5, #6366f1);
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8px;
+    -fx-padding: 10px 20px;
+    -fx-cursor: hand;
+}
+
+.btn-primary:hover {
+    -fx-background-color: linear-gradient(to right, #4338ca, #4f46e5);
+}
+
+.btn-primary:pressed {
+    -fx-background-color: #3730a3;
+}
+
+/* Secondary & Switch Mode Buttons */
+.btn-link {
+    -fx-background-color: transparent;
+    -fx-text-fill: #4f46e5;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-padding: 4px;
+    -fx-underline: true;
+}
+
+.btn-link:hover {
+    -fx-text-fill: #3730a3;
+}
+
+/* Logout Button */
+.btn-logout {
+    -fx-background-color: #fee2e2;
+    -fx-text-fill: #dc2626;
+    -fx-font-weight: bold;
+    -fx-font-size: 13px;
+    -fx-background-radius: 8px;
+    -fx-padding: 8px 18px;
+    -fx-cursor: hand;
+}
+
+.btn-logout:hover {
+    -fx-background-color: #fecaca;
+}
+
+/* Feedback Messages */
+.label-error {
+    -fx-text-fill: #dc2626;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.label-success {
+    -fx-text-fill: #16a34a;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+/* Field Helper Hint */
+.field-hint {
+    -fx-text-fill: #64748b;
+    -fx-font-size: 11px;
+}
+
