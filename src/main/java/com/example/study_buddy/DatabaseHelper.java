@@ -334,7 +334,7 @@ public class DatabaseHelper {
     }
 
     /**
-     * Retrieves the user's active weekdays (default: Monday to Friday).
+     * Retrieves the user's active weekdays. Returns an empty list if not configured yet (user starts from zero).
      */
     public static java.util.List<String> getUserWeekdays(int userId) {
         String sql = "SELECT weekdays FROM user_routine_config WHERE user_id = ?";
@@ -352,12 +352,12 @@ public class DatabaseHelper {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        // Defaults: 5 weekdays
-        return new java.util.ArrayList<>(java.util.Arrays.asList("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"));
+        // Start from zero / empty if not configured
+        return new java.util.ArrayList<>();
     }
 
     /**
-     * Retrieves the user's active time slots.
+     * Retrieves the user's active time slots. Returns an empty list if not configured yet.
      */
     public static java.util.List<String> getUserTimeSlots(int userId) {
         String sql = "SELECT time_slots FROM user_routine_config WHERE user_id = ?";
@@ -375,10 +375,8 @@ public class DatabaseHelper {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        // Default time slots
-        return new java.util.ArrayList<>(java.util.Arrays.asList(
-                "08:30 - 09:50", "10:00 - 11:20", "11:30 - 12:50", "01:30 - 02:50", "03:00 - 04:20"
-        ));
+        // Start from zero / empty if not configured
+        return new java.util.ArrayList<>();
     }
 
     /**
@@ -396,5 +394,57 @@ public class DatabaseHelper {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Renames a weekday, updating all existing routine_slots and the saved user configuration.
+     */
+    public static boolean renameWeekday(int userId, String oldDay, String newDay) {
+        String updateSlotsSql = "UPDATE routine_slots SET day_of_week = ? WHERE user_id = ? AND day_of_week = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(updateSlotsSql)) {
+            pstmt.setString(1, newDay);
+            pstmt.setInt(2, userId);
+            pstmt.setString(3, oldDay);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+
+        // Update user_routine_config after closing the slots update connection
+        java.util.List<String> days = getUserWeekdays(userId);
+        int idx = days.indexOf(oldDay);
+        if (idx != -1) {
+            days.set(idx, newDay);
+            saveUserRoutineConfig(userId, days, getUserTimeSlots(userId));
+        }
+        return true;
+    }
+
+    /**
+     * Renames a time slot, updating all existing routine_slots and the saved user configuration.
+     */
+    public static boolean renameTimeSlot(int userId, String oldSlot, String newSlot) {
+        String updateSlotsSql = "UPDATE routine_slots SET time_slot = ? WHERE user_id = ? AND time_slot = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(updateSlotsSql)) {
+            pstmt.setString(1, newSlot);
+            pstmt.setInt(2, userId);
+            pstmt.setString(3, oldSlot);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+
+        // Update user_routine_config after closing the slots update connection
+        java.util.List<String> slots = getUserTimeSlots(userId);
+        int idx = slots.indexOf(oldSlot);
+        if (idx != -1) {
+            slots.set(idx, newSlot);
+            saveUserRoutineConfig(userId, getUserWeekdays(userId), slots);
+        }
+        return true;
     }
 }

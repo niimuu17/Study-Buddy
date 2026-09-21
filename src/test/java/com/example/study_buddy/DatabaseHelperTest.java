@@ -165,5 +165,74 @@ public class DatabaseHelperTest {
         assertTrue(deleted, "Slot should delete successfully");
         Map<String, RoutineSlot> slotsAfterDelete = DatabaseHelper.getAllRoutineSlots(user.getId());
         assertFalse(slotsAfterDelete.containsKey(key), "Deleted slot should not exist anymore");
+
+        // 6. Test Weekday and Timeslot Renaming
+        RoutineSlot slotToRename = new RoutineSlot(user.getId(), "Tuesday", "10:15 - 11:15", "EEE1001", "RK");
+        DatabaseHelper.saveRoutineSlot(slotToRename);
+
+        boolean dayRenamed = DatabaseHelper.renameWeekday(user.getId(), "Tuesday", "Theory Tuesday");
+        assertTrue(dayRenamed);
+        Map<String, RoutineSlot> slotsAfterDayRename = DatabaseHelper.getAllRoutineSlots(user.getId());
+        assertTrue(slotsAfterDayRename.containsKey("Theory Tuesday|||10:15 - 11:15"));
+        assertFalse(slotsAfterDayRename.containsKey("Tuesday|||10:15 - 11:15"));
+
+        boolean timeRenamed = DatabaseHelper.renameTimeSlot(user.getId(), "10:15 - 11:15", "10:30 - 11:30");
+        assertTrue(timeRenamed);
+        Map<String, RoutineSlot> slotsAfterTimeRename = DatabaseHelper.getAllRoutineSlots(user.getId());
+        assertTrue(slotsAfterTimeRename.containsKey("Theory Tuesday|||10:30 - 11:30"));
+    }
+
+    @Test
+    public void testEmptyRoutineForNewUser() {
+        long ts = System.currentTimeMillis();
+        String username = "emptyuser" + ts;
+        DatabaseHelper.registerUser("empty" + ts + "@gmail.com", username, "Secret@123");
+        User user = DatabaseHelper.authenticateUser(username, "Secret@123");
+        assertNotNull(user);
+
+        // A new user must start from zero (empty weekdays and empty time slots)
+        List<String> weekdays = DatabaseHelper.getUserWeekdays(user.getId());
+        List<String> timeSlots = DatabaseHelper.getUserTimeSlots(user.getId());
+        assertTrue(weekdays.isEmpty(), "New user should start with 0 weekdays");
+        assertTrue(timeSlots.isEmpty(), "New user should start with 0 time slots");
+    }
+
+    @Test
+    public void testTimeSlotConflictDetection() {
+        List<String> existing = Arrays.asList(
+                "08:30 - 09:50",
+                "10:00 - 11:20",
+                "01:30 PM - 02:50 PM"
+        );
+
+        // Conflict cases:
+        // 1. Partial overlap at start
+        String c1 = TimeSlotHelper.findConflict("09:00 - 10:30", existing, null);
+        assertNotNull(c1, "Should detect conflict with 08:30 - 09:50");
+
+        // 2. Complete containment
+        String c2 = TimeSlotHelper.findConflict("08:45 - 09:15", existing, null);
+        assertNotNull(c2, "Should detect conflict inside 08:30 - 09:50");
+
+        // 3. Exact match
+        String c3 = TimeSlotHelper.findConflict("10:00 - 11:20", existing, null);
+        assertNotNull(c3, "Should detect exact match conflict");
+
+        // 4. Overlap in 12-hour PM format
+        String c4 = TimeSlotHelper.findConflict("02:00 PM - 03:00 PM", existing, null);
+        assertNotNull(c4, "Should detect conflict with 01:30 PM - 02:50 PM");
+
+        // Non-conflict cases:
+        // 5. In between slots (09:50 to 10:00)
+        String ok1 = TimeSlotHelper.findConflict("09:50 - 10:00", existing, null);
+        assertNull(ok1, "09:50 - 10:00 should have no conflict");
+
+        // 6. Before first slot (07:00 - 08:20)
+        String ok2 = TimeSlotHelper.findConflict("07:00 - 08:20", existing, null);
+        assertNull(ok2, "07:00 - 08:20 should have no conflict");
+
+        // 7. Editing existing slot (ignoring itself)
+        String ok3 = TimeSlotHelper.findConflict("08:30 - 09:55", existing, "08:30 - 09:50");
+        assertNull(ok3, "Editing 08:30 - 09:50 to 08:30 - 09:55 should not conflict when ignoring self");
     }
 }
