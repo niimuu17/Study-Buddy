@@ -9,7 +9,11 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
+import javafx.animation.Interpolator;
+import javafx.animation.Transition;
+import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 import java.io.IOException;
 import java.util.*;
@@ -30,6 +34,16 @@ public class HelloController {
     @FXML private Button logoutButton;
     @FXML private GridPane routineGrid;
 
+    // Sidebar components
+    @FXML private Button leftToggleBtn;
+    @FXML private Button rightToggleBtn;
+    @FXML private VBox leftSidebar;
+    @FXML private VBox rightSidebar;
+
+    private boolean isLeftSidebarOpen = false;
+    private boolean isRightSidebarOpen = false;
+    private static final double SIDEBAR_WIDTH = 230.0;
+
     private User currentUser;
     private List<String> weekdays = new ArrayList<>();
     private List<String> timeSlots = new ArrayList<>();
@@ -37,6 +51,30 @@ public class HelloController {
     private static final List<String> DEFAULT_WEEKDAY_NAMES = Arrays.asList(
             "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
     );
+
+    @FXML
+    public void initialize() {
+        if (leftSidebar != null) {
+            leftSidebar.setVisible(false);
+            leftSidebar.setManaged(false);
+            leftSidebar.setPrefWidth(0);
+            leftSidebar.setMinWidth(0);
+            leftSidebar.setMaxWidth(0);
+        }
+        if (rightSidebar != null) {
+            rightSidebar.setVisible(false);
+            rightSidebar.setManaged(false);
+            rightSidebar.setPrefWidth(0);
+            rightSidebar.setMinWidth(0);
+            rightSidebar.setMaxWidth(0);
+        }
+        if (leftToggleBtn != null) {
+            leftToggleBtn.setText("☰ Sidebar");
+        }
+        if (rightToggleBtn != null) {
+            rightToggleBtn.setText("Sidebar ▤");
+        }
+    }
 
     /**
      * Initializes the dashboard with the authenticated user and loads their routine.
@@ -82,7 +120,7 @@ public class HelloController {
             quickSetupBtn.setStyle("-fx-background-color: #e0e7ff; -fx-text-fill: #4338ca; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 8px 16px;");
             quickSetupBtn.setOnAction(e -> {
                 weekdays = new ArrayList<>(Arrays.asList("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"));
-                timeSlots = new ArrayList<>(Arrays.asList("08:30 - 09:50", "10:00 - 11:20", "11:30 - 12:50", "01:30 - 02:50", "03:00 - 04:20"));
+                timeSlots = new ArrayList<>(Arrays.asList("08:30 - 09:50", "10:00 - 11:20", "11:30 - 12:50", "01:30 PM - 02:50 PM", "03:00 PM - 04:20 PM"));
                 DatabaseHelper.saveUserRoutineConfig(currentUser.getId(), weekdays, timeSlots);
                 buildRoutineGrid();
             });
@@ -128,21 +166,30 @@ public class HelloController {
             routineGrid.add(timeHeader, col + 1, 0);
         }
 
-        // 4. Left Column: Weekdays (Editable on click) & Routine Data Cells
+        // 4. Left Column: Weekdays (Editable on click / right-click context menu) & Routine Data Cells
         for (int row = 0; row < weekdays.size(); row++) {
             int dayIndex = row;
             String day = weekdays.get(row);
 
-            // Weekday Header Cell (Editable)
-            Label dayHeader = new Label(day + " ✏");
+            // Weekday Header Cell (Right-click for options, click to rename)
+            Label dayHeader = new Label(day + "\n⚙");
             dayHeader.setAlignment(Pos.CENTER);
+            dayHeader.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
             dayHeader.setPrefSize(130, 85);
-            dayHeader.setTooltip(new Tooltip("Click to rename this weekday"));
+            dayHeader.setTooltip(new Tooltip("Right-click to add day above/below, rename, or delete"));
             dayHeader.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #1e293b; "
                     + "-fx-background-color: #f8fafc; -fx-background-radius: 8px; -fx-border-color: #e2e8f0; -fx-border-radius: 8px; -fx-cursor: hand;");
 
-            // Renaming weekday on click
-            dayHeader.setOnMouseClicked(e -> handleRenameWeekday(dayIndex, day));
+            // Context menu for weekday operations (Add Above, Add Below, Rename, Delete)
+            ContextMenu weekdayMenu = createWeekdayContextMenu(dayIndex, day);
+
+            dayHeader.setOnMouseClicked(e -> {
+                if (e.getButton() == MouseButton.SECONDARY) {
+                    weekdayMenu.show(dayHeader, e.getScreenX(), e.getScreenY());
+                } else if (e.getButton() == MouseButton.PRIMARY) {
+                    handleRenameWeekday(dayIndex, day);
+                }
+            });
 
             routineGrid.add(dayHeader, 0, row + 1);
 
@@ -186,63 +233,117 @@ public class HelloController {
 
     /**
      * Prompts for new slot duration and prevents addition if there is a conflict.
+     * Uses the modal TimeSlotDialog which stays open until the user resolves any duration conflict.
      */
     private void promptAddSlotWithConflictCheck(int insertIndex, String position) {
-        TextInputDialog dialog = new TextInputDialog("09:00 - 10:00");
-        dialog.setTitle("Add Time Slot (" + position + ")");
-        dialog.setHeaderText("Enter class duration (e.g. 08:30 - 09:50 or 01:30 PM - 02:50 PM):");
-        dialog.setContentText("Duration:");
+        String defaultDuration = "09:00 - 10:00";
+        TimeSlotDialog.show(
+                routineGrid.getScene().getWindow(),
+                "Add Time Slot (" + position + ")",
+                "Enter class duration (e.g. 08:30 - 09:50 or 01:30 PM - 02:50 PM):",
+                defaultDuration,
+                timeSlots,
+                null,
+                newSlot -> {
+                    if (insertIndex >= 0 && insertIndex <= timeSlots.size()) {
+                        timeSlots.add(insertIndex, newSlot);
+                    } else {
+                        timeSlots.add(newSlot);
+                    }
 
-        Optional<String> result = dialog.showAndWait();
-        result.ifPresent(slotInput -> {
-            String newSlot = slotInput.trim();
-            if (newSlot.isEmpty()) return;
-
-            // Check for duration conflict
-            String conflict = TimeSlotHelper.findConflict(newSlot, timeSlots, null);
-            if (conflict != null) {
-                showError("Duration Conflict!",
-                        "The time slot \"" + newSlot + "\" conflicts with existing slot \"" + conflict + "\".\n\n"
-                        + "You must fix the duration to avoid overlapping classes before adding.");
-                return; // Block addition
-            }
-
-            if (insertIndex >= 0 && insertIndex <= timeSlots.size()) {
-                timeSlots.add(insertIndex, newSlot);
-            } else {
-                timeSlots.add(newSlot);
-            }
-
-            DatabaseHelper.saveUserRoutineConfig(currentUser.getId(), weekdays, timeSlots);
-            buildRoutineGrid();
-        });
+                    DatabaseHelper.saveUserRoutineConfig(currentUser.getId(), weekdays, timeSlots);
+                    buildRoutineGrid();
+                }
+        );
     }
 
     /**
      * Prompts to edit existing slot duration with conflict validation.
      */
     private void promptEditSlotDuration(int index, String oldSlot) {
-        TextInputDialog dialog = new TextInputDialog(oldSlot);
-        dialog.setTitle("Edit Time Slot Duration");
-        dialog.setHeaderText("Update duration for \"" + oldSlot + "\":");
-        dialog.setContentText("New Duration:");
+        TimeSlotDialog.show(
+                routineGrid.getScene().getWindow(),
+                "Edit Time Slot Duration",
+                "Update duration for \"" + oldSlot + "\":",
+                oldSlot,
+                timeSlots,
+                oldSlot, // ignore self when checking conflicts
+                newSlot -> {
+                    DatabaseHelper.renameTimeSlot(currentUser.getId(), oldSlot, newSlot);
+                    timeSlots.set(index, newSlot);
+                    buildRoutineGrid();
+                }
+        );
+    }
 
-        Optional<String> result = dialog.showAndWait();
-        result.ifPresent(slotInput -> {
-            String newSlot = slotInput.trim();
-            if (newSlot.isEmpty() || newSlot.equalsIgnoreCase(oldSlot)) return;
+    /**
+     * Creates context menu for weekdays allowing addition above or below, renaming, or deletion.
+     */
+    private ContextMenu createWeekdayContextMenu(int index, String currentDay) {
+        ContextMenu menu = new ContextMenu();
 
-            // Check conflict against other slots (ignoring the slot being edited)
-            String conflict = TimeSlotHelper.findConflict(newSlot, timeSlots, oldSlot);
-            if (conflict != null) {
-                showError("Duration Conflict!",
-                        "The duration \"" + newSlot + "\" conflicts with existing slot \"" + conflict + "\".\n\n"
-                        + "You must fix the duration to avoid overlapping classes.");
-                return; // Block update
+        MenuItem addAboveItem = new MenuItem("⬆ Add Day Above");
+        addAboveItem.setOnAction(e -> promptAddWeekdayAt(index, "Above"));
+
+        MenuItem addBelowItem = new MenuItem("⬇ Add Day Below");
+        addBelowItem.setOnAction(e -> promptAddWeekdayAt(index + 1, "Below"));
+
+        MenuItem renameItem = new MenuItem("✏ Rename Day");
+        renameItem.setOnAction(e -> handleRenameWeekday(index, currentDay));
+
+        MenuItem deleteItem = new MenuItem("🗑 Delete Day");
+        deleteItem.setOnAction(e -> {
+            weekdays.remove(index);
+            DatabaseHelper.saveUserRoutineConfig(currentUser.getId(), weekdays, timeSlots);
+            buildRoutineGrid();
+        });
+
+        menu.getItems().addAll(addAboveItem, addBelowItem, new SeparatorMenuItem(), renameItem, deleteItem);
+        return menu;
+    }
+
+    /**
+     * Prompts the user to enter a new weekday name and inserts it at the specified index.
+     */
+    private void promptAddWeekdayAt(int insertIndex, String position) {
+        if (weekdays.size() >= 7) {
+            showAlert("Weekdays Limit", "You already have 7 weekdays in your routine.");
+            return;
+        }
+
+        String candidate = null;
+        for (String day : DEFAULT_WEEKDAY_NAMES) {
+            if (!weekdays.contains(day)) {
+                candidate = day;
+                break;
+            }
+        }
+        if (candidate == null) candidate = "Day " + (weekdays.size() + 1);
+
+        TextInputDialog dialog = new TextInputDialog(candidate);
+        dialog.setTitle("Add Weekday (" + position + ")");
+        dialog.setHeaderText("Enter weekday name (e.g. Sunday, Monday, Theory Day):");
+        dialog.setContentText("Weekday:");
+
+        Optional<String> res = dialog.showAndWait();
+        res.ifPresent(inputDay -> {
+            String clean = inputDay.trim();
+            if (clean.isEmpty()) {
+                showError("Invalid Weekday", "Weekday name cannot be empty.");
+                return;
+            }
+            if (weekdays.contains(clean)) {
+                showError("Duplicate Weekday", "A weekday named \"" + clean + "\" already exists in your routine.");
+                return;
             }
 
-            DatabaseHelper.renameTimeSlot(currentUser.getId(), oldSlot, newSlot);
-            timeSlots.set(index, newSlot);
+            if (insertIndex >= 0 && insertIndex <= weekdays.size()) {
+                weekdays.add(insertIndex, clean);
+            } else {
+                weekdays.add(clean);
+            }
+
+            DatabaseHelper.saveUserRoutineConfig(currentUser.getId(), weekdays, timeSlots);
             buildRoutineGrid();
         });
     }
@@ -339,41 +440,12 @@ public class HelloController {
     }
 
     /**
-     * Adds a new weekday to the routine (up to 7 days).
+     * Adds a new weekday to the routine.
      */
     @FXML
     public void handleAddWeekday() {
         if (currentUser == null) return;
-
-        if (weekdays.size() >= 7) {
-            showAlert("Weekdays Limit", "You already have 7 weekdays in your routine.");
-            return;
-        }
-
-        // Find next unused day name or let user input
-        String candidate = null;
-        for (String day : DEFAULT_WEEKDAY_NAMES) {
-            if (!weekdays.contains(day)) {
-                candidate = day;
-                break;
-            }
-        }
-        if (candidate == null) candidate = "Day " + (weekdays.size() + 1);
-
-        TextInputDialog dialog = new TextInputDialog(candidate);
-        dialog.setTitle("Add Weekday");
-        dialog.setHeaderText("Enter weekday name (e.g. Sunday, Monday, Theory Day):");
-        dialog.setContentText("Weekday:");
-
-        Optional<String> res = dialog.showAndWait();
-        res.ifPresent(inputDay -> {
-            String clean = inputDay.trim();
-            if (!clean.isEmpty() && !weekdays.contains(clean)) {
-                weekdays.add(clean);
-                DatabaseHelper.saveUserRoutineConfig(currentUser.getId(), weekdays, timeSlots);
-                buildRoutineGrid();
-            }
-        });
+        promptAddWeekdayAt(weekdays.size(), "End");
     }
 
     /**
@@ -428,6 +500,78 @@ public class HelloController {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Toggles the Left Sidebar with ultra-smooth animation.
+     */
+    @FXML
+    public void handleToggleLeft() {
+        isLeftSidebarOpen = !isLeftSidebarOpen;
+        animateSidebar(leftSidebar, isLeftSidebarOpen, SIDEBAR_WIDTH);
+        if (leftToggleBtn != null) {
+            leftToggleBtn.setText(isLeftSidebarOpen ? "✕ Sidebar" : "☰ Sidebar");
+        }
+    }
+
+    /**
+     * Toggles the Right Sidebar with ultra-smooth animation.
+     */
+    @FXML
+    public void handleToggleRight() {
+        isRightSidebarOpen = !isRightSidebarOpen;
+        animateSidebar(rightSidebar, isRightSidebarOpen, SIDEBAR_WIDTH);
+        if (rightToggleBtn != null) {
+            rightToggleBtn.setText(isRightSidebarOpen ? "Sidebar ✕" : "Sidebar ▤");
+        }
+    }
+
+    /**
+     * Performs an ultra-smooth cubic ease-in-out transition on sidebar width
+     * with dynamic geometric clipping to eliminate any text reflow or jitter.
+     */
+    private void animateSidebar(VBox sidebar, boolean expand, double targetWidth) {
+        if (sidebar == null) return;
+
+        sidebar.setVisible(true);
+        sidebar.setManaged(true);
+
+        Rectangle clip = new Rectangle();
+        double currentHeight = sidebar.getHeight() > 0 ? sidebar.getHeight() : 800;
+        clip.setHeight(currentHeight);
+        sidebar.setClip(clip);
+
+        double startWidth = sidebar.getWidth();
+        if (expand && startWidth <= 0) startWidth = 0.0;
+        double endWidth = expand ? targetWidth : 0.0;
+
+        double finalStartWidth = startWidth;
+        Transition transition = new Transition() {
+            {
+                setCycleDuration(Duration.millis(260));
+                setInterpolator(Interpolator.EASE_BOTH);
+            }
+
+            @Override
+            protected void interpolate(double frac) {
+                double current = finalStartWidth + (endWidth - finalStartWidth) * frac;
+                sidebar.setPrefWidth(current);
+                sidebar.setMinWidth(current);
+                sidebar.setMaxWidth(current);
+                clip.setWidth(current);
+                clip.setHeight(sidebar.getHeight() > 0 ? sidebar.getHeight() : currentHeight);
+            }
+        };
+
+        transition.setOnFinished(e -> {
+            if (!expand) {
+                sidebar.setVisible(false);
+                sidebar.setManaged(false);
+            }
+            sidebar.setClip(null); // restore clean rendering after animation
+        });
+
+        transition.play();
     }
 
     private void showAlert(String title, String content) {

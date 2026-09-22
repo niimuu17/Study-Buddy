@@ -234,5 +234,25 @@ public class DatabaseHelperTest {
         // 7. Editing existing slot (ignoring itself)
         String ok3 = TimeSlotHelper.findConflict("08:30 - 09:55", existing, "08:30 - 09:50");
         assertNull(ok3, "Editing 08:30 - 09:50 to 08:30 - 09:55 should not conflict when ignoring self");
+
+        // 8. Punctuation variations & dot notation
+        String c5 = TimeSlotHelper.validateSlot("09.00 – 10.30", existing, null);
+        assertNotNull(c5, "En-dash and dot separator should detect conflict");
+        assertTrue(c5.contains("overlaps with existing class slot"));
+
+        // 9. Afternoon heuristic without PM
+        List<String> afternoonExisting = Arrays.asList("01:30 - 02:50");
+        String c6 = TimeSlotHelper.validateSlot("2:00 - 3:00", afternoonExisting, null);
+        assertNotNull(c6, "2:00 - 3:00 should conflict with 01:30 - 02:50 using afternoon heuristic");
+
+        // 10. Invalid syntax
+        String errSyntax = TimeSlotHelper.validateSlot("Invalid Format", existing, null);
+        assertNotNull(errSyntax);
+        assertTrue(errSyntax.contains("Please use format"));
+
+        // 11. End time <= start time
+        String errBackwards = TimeSlotHelper.validateSlot("11:00 - 10:00", existing, null);
+        assertNotNull(errBackwards);
+        assertTrue(errBackwards.contains("End time must be after start time"));
     }
 }

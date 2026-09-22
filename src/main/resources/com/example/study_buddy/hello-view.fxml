@@ -9,50 +9,88 @@
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
 
-<VBox alignment="TOP_CENTER" prefHeight="700.0" prefWidth="1000.0" spacing="16.0"
+<VBox alignment="TOP_CENTER" prefHeight="700.0" prefWidth="1100.0" spacing="14.0"
       stylesheets="@styles.css" styleClass="main-container"
       xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.example.study_buddy.HelloController">
     <padding>
-        <Insets bottom="20.0" left="24.0" right="24.0" top="18.0" />
+        <Insets bottom="16.0" left="20.0" right="20.0" top="14.0" />
     </padding>
 
-    <!-- Top Header Bar -->
-    <HBox alignment="CENTER_LEFT" spacing="14.0" style="-fx-background-color: #ffffff; -fx-padding: 14px 20px; -fx-background-radius: 10px; -fx-border-color: #e2e8f0; -fx-border-radius: 10px;">
+    <!-- Top Navigation & Toolbar -->
+    <HBox alignment="CENTER_LEFT" spacing="12.0"
+          style="-fx-background-color: #ffffff; -fx-padding: 12px 18px; -fx-background-radius: 10px; -fx-border-color: #e2e8f0; -fx-border-radius: 10px;">
+
+        <!-- Left Sidebar Toggle Button -->
+        <Button fx:id="leftToggleBtn" onAction="#handleToggleLeft" styleClass="btn-toggle" text="☰ Sidebar" />
+
         <VBox spacing="2.0">
             <Label styleClass="form-title" text="Study Buddy 🎓" />
-            <Label fx:id="welcomeText" style="-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #4f46e5;" text="Welcome to your Class Routine!" />
-            <Label fx:id="userDetailText" style="-fx-font-size: 12px; -fx-text-fill: #64748b;" text="Connected" />
+            <Label fx:id="welcomeText" style="-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #4f46e5;" text="Class Routine" />
+            <Label fx:id="userDetailText" style="-fx-font-size: 11px; -fx-text-fill: #64748b;" text="Connected" />
         </VBox>
 
         <Region HBox.hgrow="ALWAYS" />
 
         <!-- Schedule Configuration Controls -->
-        <HBox alignment="CENTER" spacing="8.0">
-            <Button onAction="#handleAddWeekday" style="-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 7px 12px;" text="+ Add Weekday" />
-            <Button onAction="#handleRemoveWeekday" style="-fx-background-color: #f1f5f9; -fx-text-fill: #64748b; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 7px 12px;" text="- Remove Day" />
-            <Button onAction="#handleAddTimeSlot" style="-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 7px 12px;" text="+ Add Time Slot" />
-            <Button onAction="#handleRemoveTimeSlot" style="-fx-background-color: #f1f5f9; -fx-text-fill: #64748b; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 7px 12px;" text="- Remove Slot" />
+        <HBox alignment="CENTER" spacing="6.0">
+            <Button onAction="#handleAddWeekday" style="-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 7px 11px;" text="+ Add Day" />
+            <Button onAction="#handleRemoveWeekday" style="-fx-background-color: #f1f5f9; -fx-text-fill: #64748b; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 7px 11px;" text="- Remove Day" />
+            <Button onAction="#handleAddTimeSlot" style="-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 7px 11px;" text="+ Add Slot" />
+            <Button onAction="#handleRemoveTimeSlot" style="-fx-background-color: #f1f5f9; -fx-text-fill: #64748b; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 7px 11px;" text="- Remove Slot" />
         </HBox>
 
-        <Region prefWidth="12.0" />
+        <Region prefWidth="8.0" />
 
+        <!-- Right Sidebar Toggle Button -->
+        <Button fx:id="rightToggleBtn" onAction="#handleToggleRight" styleClass="btn-toggle" text="Sidebar ▤" />
+
+        <!-- Logout Button -->
         <Button fx:id="logoutButton" onAction="#handleLogout" styleClass="btn-logout" text="Log Out" />
     </HBox>
 
-    <!-- Routine Grid Section with ScrollPane for whole-screen responsiveness -->
-    <ScrollPane fitToHeight="true" fitToWidth="true" VBox.vgrow="ALWAYS"
-                style="-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: #cbd5e1; -fx-border-radius: 10px;">
-        <VBox alignment="TOP_CENTER" spacing="10.0" style="-fx-background-color: #ffffff; -fx-padding: 16px; -fx-background-radius: 10px;">
-            <HBox alignment="CENTER_LEFT" spacing="10.0">
-                <Label style="-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" text="Weekly Class Routine" />
-                <Label style="-fx-font-size: 12px; -fx-text-fill: #64748b;" text="💡 Click on any cell to edit subject, teacher code, or add CT / assignment deadlines." />
-            </HBox>
+    <!-- Main Workspace with Collapsible Left and Right Sidebars -->
+    <HBox alignment="TOP_CENTER" spacing="14.0" VBox.vgrow="ALWAYS">
 
-            <GridPane fx:id="routineGrid" alignment="TOP_LEFT" hgap="10.0" vgap="10.0">
-                <!-- Dynamically built in HelloController -->
-            </GridPane>
+        <!-- Left Sidebar (Collapsible with smooth animation, closed by default) -->
+        <VBox fx:id="leftSidebar" maxWidth="0.0" minWidth="0.0" prefWidth="0.0" spacing="12.0"
+              visible="false" managed="false"
+              style="-fx-background-color: #ffffff; -fx-background-radius: 10px; -fx-border-color: #e2e8f0; -fx-border-radius: 10px; -fx-padding: 16px;">
+            <HBox alignment="CENTER_LEFT" spacing="8.0">
+                <Label style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" text="Left Sidebar" />
+            </HBox>
+            <VBox fx:id="leftSidebarContent" spacing="8.0" VBox.vgrow="ALWAYS">
+                <!-- Clean container: features will be added later -->
+            </VBox>
         </VBox>
-    </ScrollPane>
+
+        <!-- Center Workspace: Routine Grid -->
+        <ScrollPane fitToHeight="true" fitToWidth="true" HBox.hgrow="ALWAYS"
+                    style="-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: #cbd5e1; -fx-border-radius: 10px;">
+            <VBox alignment="TOP_CENTER" spacing="10.0" style="-fx-background-color: #ffffff; -fx-padding: 16px; -fx-background-radius: 10px;">
+                <HBox alignment="CENTER_LEFT" spacing="10.0">
+                    <Label style="-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" text="Weekly Class Routine" />
+                    <Label style="-fx-font-size: 12px; -fx-text-fill: #64748b;" text="💡 Click any cell to edit details or add CT / assignment deadlines." />
+                </HBox>
+
+                <GridPane fx:id="routineGrid" alignment="TOP_LEFT" hgap="10.0" vgap="10.0">
+                    <!-- Dynamically built in HelloController -->
+                </GridPane>
+            </VBox>
+        </ScrollPane>
+
+        <!-- Right Sidebar (Collapsible with smooth animation, closed by default) -->
+        <VBox fx:id="rightSidebar" maxWidth="0.0" minWidth="0.0" prefWidth="0.0" spacing="12.0"
+              visible="false" managed="false"
+              style="-fx-background-color: #ffffff; -fx-background-radius: 10px; -fx-border-color: #e2e8f0; -fx-border-radius: 10px; -fx-padding: 16px;">
+            <HBox alignment="CENTER_LEFT" spacing="8.0">
+                <Label style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" text="Right Sidebar" />
+            </HBox>
+            <VBox fx:id="rightSidebarContent" spacing="8.0" VBox.vgrow="ALWAYS">
+                <!-- Clean container: features will be added later -->
+            </VBox>
+        </VBox>
+
+    </HBox>
 
 </VBox>

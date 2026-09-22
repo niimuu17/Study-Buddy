@@ -148,3 +148,26 @@
     -fx-font-size: 11px;
 }
 
+/* Sidebar Toggle Buttons */
+.btn-toggle {
+    -fx-background-color: #f1f5f9;
+    -fx-text-fill: #334155;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+    -fx-background-radius: 6px;
+    -fx-border-color: #cbd5e1;
+    -fx-border-radius: 6px;
+    -fx-padding: 7px 12px;
+    -fx-cursor: hand;
+}
+
+.btn-toggle:hover {
+    -fx-background-color: #e2e8f0;
+    -fx-text-fill: #1e293b;
+}
+
+.btn-toggle:pressed {
+    -fx-background-color: #cbd5e1;
+}
+
+
