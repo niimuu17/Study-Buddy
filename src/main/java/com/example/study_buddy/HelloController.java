@@ -9,7 +9,10 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
+import javafx.animation.Animation;
 import javafx.animation.Interpolator;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.animation.Transition;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
@@ -90,10 +93,29 @@ public class HelloController {
     @FXML private Button rightToggleBtn;
     @FXML private VBox leftSidebar;
     @FXML private VBox rightSidebar;
+    @FXML private Label taskCountBadge;
+    @FXML private VBox tasksContainer;
+    @FXML private Button notebookTasksBtn;
 
     private boolean isLeftSidebarOpen = false;
     private boolean isRightSidebarOpen = false;
-    private static final double SIDEBAR_WIDTH = 230.0;
+    private static final double SIDEBAR_WIDTH = 290.0;
+
+    private List<RoutineTaskItem> activeTasks = new ArrayList<>();
+    private static class TaskCardNodes {
+        final HBox card;
+        final Region stripe;
+        final Label subjectLabel;
+        final Label countdownLabel;
+        TaskCardNodes(HBox card, Region stripe, Label subjectLabel, Label countdownLabel) {
+            this.card = card;
+            this.stripe = stripe;
+            this.subjectLabel = subjectLabel;
+            this.countdownLabel = countdownLabel;
+        }
+    }
+    private final Map<RoutineTaskItem, TaskCardNodes> taskCardMap = new HashMap<>();
+    private Timeline taskCountdownTimeline;
 
     private User currentUser;
     private List<String> weekdays = new ArrayList<>();
@@ -123,7 +145,10 @@ public class HelloController {
             leftToggleBtn.setText("☰ Sidebar");
         }
         if (rightToggleBtn != null) {
-            rightToggleBtn.setText("Sidebar ▤");
+            rightToggleBtn.setText("📋 Tasks");
+        }
+        if (notebookTasksBtn != null) {
+            notebookTasksBtn.setText("📋 Tasks");
         }
         if (notebookWorkspaceView != null) {
             notebookWorkspaceView.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
@@ -1342,6 +1367,7 @@ public class HelloController {
 
             buildRoutineGrid();
             loadNotebooks();
+            loadTasksSidebar();
             handleOpenMainMenu();
         }
     }
@@ -1380,6 +1406,7 @@ public class HelloController {
 
             emptyPrompt.getChildren().addAll(emptyTitle, emptySubtitle, quickSetupBtn);
             routineGrid.add(emptyPrompt, 0, 0);
+            loadTasksSidebar();
             return;
         }
 
@@ -1454,6 +1481,8 @@ public class HelloController {
                 routineGrid.add(cellCard, col + 1, row + 1);
             }
         }
+
+        loadTasksSidebar();
     }
 
     /**
@@ -1683,7 +1712,10 @@ public class HelloController {
                     day,
                     time,
                     slot,
-                    this::buildRoutineGrid
+                    () -> {
+                        buildRoutineGrid();
+                        loadTasksSidebar();
+                    }
             );
         });
 
@@ -1726,15 +1758,246 @@ public class HelloController {
     }
 
     /**
-     * Toggles the Right Sidebar with ultra-smooth animation.
+     * Toggles the Right Sidebar (Tasks & Deadlines) with ultra-smooth animation.
      */
     @FXML
     public void handleToggleRight() {
         isRightSidebarOpen = !isRightSidebarOpen;
-        animateSidebar(rightSidebar, isRightSidebarOpen, SIDEBAR_WIDTH);
-        if (rightToggleBtn != null) {
-            rightToggleBtn.setText(isRightSidebarOpen ? "Sidebar ✕" : "Sidebar ▤");
+        if (isRightSidebarOpen) {
+            loadTasksSidebar();
         }
+        animateSidebar(rightSidebar, isRightSidebarOpen, SIDEBAR_WIDTH);
+        updateRightSidebarButtonLabels();
+    }
+
+    private void updateRightSidebarButtonLabels() {
+        int count = activeTasks.size();
+        String countSuffix = count > 0 ? " (" + count + ")" : "";
+        if (rightToggleBtn != null) {
+            rightToggleBtn.setText(isRightSidebarOpen ? "✕ Tasks" : "📋 Tasks" + countSuffix);
+        }
+        if (notebookTasksBtn != null) {
+            notebookTasksBtn.setText(isRightSidebarOpen ? "✕ Tasks" : "📋 Tasks" + countSuffix);
+        }
+    }
+
+    /**
+     * Loads all pending activities with deadlines across the user's routine,
+     * sorts them chronologically by nearest deadline, and populates the Tasks sidebar.
+     */
+    public void loadTasksSidebar() {
+        if (currentUser == null) return;
+
+        activeTasks.clear();
+        Map<String, RoutineSlot> slots = DatabaseHelper.getAllRoutineSlots(currentUser.getId());
+        for (RoutineSlot slot : slots.values()) {
+            if (slot.getActivities() != null) {
+                for (SpecialActivity activity : slot.getActivities()) {
+                    if (activity.getDeadlineInfo() != null && !activity.getDeadlineInfo().trim().isEmpty()) {
+                        activeTasks.add(new RoutineTaskItem(
+                                activity.getId(),
+                                slot.getId(),
+                                slot.getSubjectName(),
+                                slot.getTeacherCode(),
+                                slot.getDayOfWeek(),
+                                slot.getTimeSlot(),
+                                activity.getActivityType(),
+                                activity.getDeadlineInfo()
+                        ));
+                    }
+                }
+            }
+        }
+
+        Collections.sort(activeTasks);
+
+        if (taskCountBadge != null) {
+            taskCountBadge.setText(String.valueOf(activeTasks.size()));
+        }
+        updateRightSidebarButtonLabels();
+
+        if (tasksContainer == null) return;
+        tasksContainer.getChildren().clear();
+        taskCardMap.clear();
+
+        if (activeTasks.isEmpty()) {
+            VBox emptyPrompt = new VBox(10);
+            emptyPrompt.setAlignment(Pos.CENTER);
+            emptyPrompt.setPadding(new Insets(36, 16, 36, 16));
+            emptyPrompt.setStyle("-fx-background-color: #f8fafc; -fx-background-radius: 8px; -fx-border-color: #e2e8f0; -fx-border-radius: 8px; -fx-border-style: dashed;");
+
+            Label icon = new Label("🎉");
+            icon.setStyle("-fx-font-size: 30px;");
+
+            Label title = new Label("No Pending Tasks");
+            title.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1e293b;");
+
+            Label sub = new Label("Activities with deadlines added to your routine will appear here with live countdowns.");
+            sub.setWrapText(true);
+            sub.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+            sub.setStyle("-fx-font-size: 11px; -fx-text-fill: #64748b;");
+
+            emptyPrompt.getChildren().addAll(icon, title, sub);
+            tasksContainer.getChildren().add(emptyPrompt);
+        } else {
+            for (RoutineTaskItem task : activeTasks) {
+                HBox card = createTaskCard(task);
+                tasksContainer.getChildren().add(card);
+            }
+        }
+
+        startTaskCountdownTimeline();
+    }
+
+    /**
+     * Builds an interactive minimalist card for a routine task:
+     * - Row 1: [Subject] <task name> and subtle options button
+     * - Row 2: Live ticking countdown ("Due in DD : HH : MM : SS" or "Ended")
+     * - Left vertical accent stripe and dynamic color progression (green -> yellow -> red -> ash)
+     * - Right-click context menu: <Details> and <Remove Task>
+     */
+    private HBox createTaskCard(RoutineTaskItem task) {
+        HBox card = new HBox(0);
+        card.setAlignment(Pos.CENTER_LEFT);
+
+        // Left accent stripe showing progressive urgency color
+        Region stripe = new Region();
+        stripe.setPrefWidth(5);
+        stripe.setMinWidth(5);
+        stripe.setMaxWidth(5);
+
+        // Main card body
+        VBox body = new VBox(5);
+        body.setPadding(new Insets(8, 10, 8, 10));
+        HBox.setHgrow(body, Priority.ALWAYS);
+
+        // Row 1: Subject badge + Task Name + Options button
+        HBox topRow = new HBox(6);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label subjectLabel = new Label(task.getSubjectName());
+        subjectLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-background-radius: 4px; -fx-padding: 2px 6px;");
+
+        Label taskNameLabel = new Label(task.getActivityType());
+        taskNameLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #1e293b;");
+        HBox.setHgrow(taskNameLabel, Priority.ALWAYS);
+
+        Button optionsBtn = new Button("⋮");
+        optionsBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #94a3b8; -fx-font-size: 14px; -fx-font-weight: bold; -fx-padding: 0 4px; -fx-cursor: hand;");
+
+        topRow.getChildren().addAll(subjectLabel, taskNameLabel, optionsBtn);
+
+        // Row 2: Live ticking clock countdown
+        Label countdownLabel = new Label(task.getFormattedClockCountdown());
+        countdownLabel.setMaxWidth(Double.MAX_VALUE);
+        countdownLabel.setAlignment(Pos.CENTER_LEFT);
+
+        body.getChildren().addAll(topRow, countdownLabel);
+        card.getChildren().addAll(stripe, body);
+
+        // Apply initial dynamic color theme (Green -> Yellow -> Cherry Red -> Ash)
+        RoutineTaskItem.TaskColorTheme theme = task.getColorTheme();
+        applyCardTheme(card, stripe, subjectLabel, countdownLabel, theme);
+
+        taskCardMap.put(task, new TaskCardNodes(card, stripe, subjectLabel, countdownLabel));
+
+        // Right-Click Context Menu with <Details> and <Remove Task>
+        ContextMenu menu = new ContextMenu();
+        MenuItem detailsItem = new MenuItem("🔍 Details");
+        detailsItem.setOnAction(e -> showRoutineDetailsForTask(task, card.getScene().getWindow()));
+
+        MenuItem removeItem = new MenuItem("🗑 Remove Task");
+        removeItem.setOnAction(e -> handleRemoveTask(task));
+
+        menu.getItems().addAll(detailsItem, new SeparatorMenuItem(), removeItem);
+
+        // Right click on card
+        card.setOnContextMenuRequested(e -> menu.show(card, e.getScreenX(), e.getScreenY()));
+        optionsBtn.setOnAction(e -> menu.show(optionsBtn, javafx.geometry.Side.BOTTOM, 0, 0));
+
+        // Left click on card opens Details directly
+        card.setOnMouseClicked(e -> {
+            if (e.getButton() == MouseButton.PRIMARY && !optionsBtn.isHover()) {
+                showRoutineDetailsForTask(task, card.getScene().getWindow());
+            }
+        });
+
+        Tooltip.install(card, new Tooltip("Left-click for details • Right-click for options"));
+
+        return card;
+    }
+
+    private void applyCardTheme(HBox card, Region stripe, Label subjectLabel, Label countdownLabel,
+                                RoutineTaskItem.TaskColorTheme theme) {
+        if (theme.isAsh()) {
+            card.setStyle("-fx-background-color: #f8fafc; -fx-background-radius: 8px; -fx-border-color: #cbd5e1; -fx-border-radius: 8px; -fx-border-width: 1px; -fx-cursor: hand;");
+            stripe.setStyle("-fx-background-color: #94a3b8; -fx-background-radius: 8px 0 0 8px;");
+            subjectLabel.setStyle("-fx-background-color: #e2e8f0; -fx-text-fill: #475569; -fx-font-size: 11px; -fx-font-weight: bold; -fx-background-radius: 4px; -fx-padding: 2px 6px;");
+            countdownLabel.setStyle("-fx-background-color: #e2e8f0; -fx-text-fill: #64748b; -fx-font-size: 11px; -fx-font-weight: bold; -fx-background-radius: 4px; -fx-padding: 3px 6px;");
+        } else {
+            card.setStyle("-fx-background-color: " + theme.getCardBg() + "; -fx-background-radius: 8px; -fx-border-color: " + theme.getBorderColor() + "; -fx-border-radius: 8px; -fx-border-width: 1px; -fx-cursor: hand;");
+            stripe.setStyle("-fx-background-color: " + theme.getAccentColor() + "; -fx-background-radius: 8px 0 0 8px;");
+            subjectLabel.setStyle("-fx-background-color: " + theme.getBadgeBg() + "; -fx-text-fill: " + theme.getBadgeText() + "; -fx-font-size: 11px; -fx-font-weight: bold; -fx-background-radius: 4px; -fx-padding: 2px 6px;");
+            countdownLabel.setStyle("-fx-background-color: " + theme.getBadgeBg() + "; -fx-text-fill: " + theme.getBadgeText() + "; -fx-font-size: 11px; -fx-font-weight: bold; -fx-background-radius: 4px; -fx-padding: 3px 6px;");
+        }
+    }
+
+    private void showRoutineDetailsForTask(RoutineTaskItem task, javafx.stage.Window window) {
+        if (task == null || currentUser == null) return;
+        Map<String, RoutineSlot> allSlots = DatabaseHelper.getAllRoutineSlots(currentUser.getId());
+        RoutineSlot slot = allSlots.get(task.getWeekday() + "|||" + task.getTimeSlot());
+        RoutineDetailDialog.show(
+                window,
+                currentUser.getId(),
+                task.getWeekday(),
+                task.getTimeSlot(),
+                slot,
+                () -> {
+                    buildRoutineGrid();
+                    loadTasksSidebar();
+                }
+        );
+    }
+
+    private void handleRemoveTask(RoutineTaskItem task) {
+        if (task == null || currentUser == null) return;
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Remove Task");
+        confirm.setHeaderText("Remove task \"" + task.getActivityType() + "\"?");
+        confirm.setContentText("Subject: " + task.getSubjectName() + "\nClass: " + task.getWeekday() + " (" + task.getTimeSlot() + ")\nDeadline: " + task.getFormattedTarget());
+        Optional<ButtonType> result = confirm.showAndWait();
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            DatabaseHelper.deleteRoutineActivity(task.getActivityId());
+            buildRoutineGrid();
+            loadTasksSidebar();
+        }
+    }
+
+    /**
+     * Starts or refreshes the 1-second countdown timeline updating clock digits and dynamic colors.
+     */
+    private void startTaskCountdownTimeline() {
+        if (taskCountdownTimeline != null) {
+            taskCountdownTimeline.stop();
+        }
+        if (taskCardMap.isEmpty()) {
+            return;
+        }
+
+        taskCountdownTimeline = new Timeline(new KeyFrame(Duration.seconds(1), event -> {
+            for (Map.Entry<RoutineTaskItem, TaskCardNodes> entry : taskCardMap.entrySet()) {
+                RoutineTaskItem task = entry.getKey();
+                TaskCardNodes nodes = entry.getValue();
+                if (nodes != null && nodes.countdownLabel != null && task != null) {
+                    nodes.countdownLabel.setText(task.getFormattedClockCountdown());
+                    RoutineTaskItem.TaskColorTheme theme = task.getColorTheme();
+                    applyCardTheme(nodes.card, nodes.stripe, nodes.subjectLabel, nodes.countdownLabel, theme);
+                }
+            }
+        }));
+        taskCountdownTimeline.setCycleCount(Animation.INDEFINITE);
+        taskCountdownTimeline.play();
     }
 
     /**

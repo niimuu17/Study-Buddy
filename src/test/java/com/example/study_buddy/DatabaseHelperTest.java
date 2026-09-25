@@ -386,5 +386,154 @@ public class DatabaseHelperTest {
         assertEquals(PageBlock.TYPE_TEXT, legacy.get(0).getType());
         assertEquals("Plain text note without json brackets", legacy.get(0).getContent());
     }
+
+    @Test
+    public void testRoutineTaskItemParsingAndCountdown() {
+        // 1. Parsing various formats
+        java.time.LocalDateTime dt1 = RoutineTaskItem.parseDeadline("2026-10-15 (11:59 PM)");
+        assertEquals(2026, dt1.getYear());
+        assertEquals(10, dt1.getMonthValue());
+        assertEquals(15, dt1.getDayOfMonth());
+        assertEquals(23, dt1.getHour());
+        assertEquals(59, dt1.getMinute());
+
+        java.time.LocalDateTime dt2 = RoutineTaskItem.parseDeadline("2026-12-01 (02:30 PM)");
+        assertEquals(14, dt2.getHour());
+        assertEquals(30, dt2.getMinute());
+
+        java.time.LocalDateTime dt3 = RoutineTaskItem.parseDeadline("2026-11-20 (09:15 AM)");
+        assertEquals(9, dt3.getHour());
+        assertEquals(15, dt3.getMinute());
+
+        java.time.LocalDateTime dt4 = RoutineTaskItem.parseDeadline("2026-11-20");
+        assertEquals(23, dt4.getHour());
+        assertEquals(59, dt4.getMinute());
+
+        // 2. Formatting & Countdown
+        RoutineTaskItem futureTask = new RoutineTaskItem(1, "CSE2008", "SH", "Monday", "08:30 - 09:50", "Quiz 1",
+                java.time.LocalDateTime.now().plusDays(3).plusHours(5).plusMinutes(3).plusSeconds(32)
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd (hh:mm a)", java.util.Locale.ENGLISH)));
+
+        String countdown = futureTask.getFormattedCountdown();
+        assertNotNull(countdown);
+        assertTrue(countdown.contains("days") || countdown.contains("hrs"), "Countdown should show remaining time: " + countdown);
+        assertEquals(RoutineTaskItem.Urgency.NORMAL, futureTask.getUrgencyLevel());
+
+        // 3. Urgent Task (< 24 hours left)
+        RoutineTaskItem urgentTask = new RoutineTaskItem(2, "MATH101", "AK", "Tuesday", "10:00 - 11:20", "CT 2",
+                java.time.LocalDateTime.now().plusHours(5).plusMinutes(10)
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd (hh:mm a)", java.util.Locale.ENGLISH)));
+        assertEquals(RoutineTaskItem.Urgency.URGENT, urgentTask.getUrgencyLevel());
+        assertTrue(urgentTask.getFormattedCountdown().contains("hrs"));
+
+        // 4. Overdue Task (Past deadline)
+        RoutineTaskItem overdueTask = new RoutineTaskItem(3, "PHY102", "MS", "Wednesday", "01:30 PM - 02:50 PM", "Assignment 1",
+                java.time.LocalDateTime.now().minusHours(2).minusMinutes(15)
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd (hh:mm a)", java.util.Locale.ENGLISH)));
+        assertEquals(RoutineTaskItem.Urgency.OVERDUE, overdueTask.getUrgencyLevel());
+        assertTrue(overdueTask.getFormattedCountdown().contains("Overdue"));
+
+        // 5. Sorting by nearest deadline first
+        List<RoutineTaskItem> taskList = new ArrayList<>();
+        taskList.add(futureTask);
+        taskList.add(overdueTask);
+        taskList.add(urgentTask);
+
+        Collections.sort(taskList);
+        assertEquals(overdueTask, taskList.get(0));
+        assertEquals(urgentTask, taskList.get(1));
+        assertEquals(futureTask, taskList.get(2));
+    }
+
+    @Test
+    public void testClockCountdownColorThemesAndActivityDeletion() {
+        // 1. Clock Countdown format: "Due in DD : HH : MM : SS"
+        RoutineTaskItem task1 = new RoutineTaskItem(101, 1, "Math 2207", "AK", "Monday", "08:30 - 09:50", "Quiz 1",
+                java.time.LocalDateTime.now().plusDays(3).plusHours(5).plusMinutes(3).plusSeconds(32)
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd (hh:mm a)", java.util.Locale.ENGLISH)));
+
+        assertEquals(101, task1.getActivityId());
+        String clockCountdown = task1.getFormattedClockCountdown();
+        assertNotNull(clockCountdown);
+        assertTrue(clockCountdown.startsWith("Due in "), "Clock format should start with 'Due in ': " + clockCountdown);
+        assertTrue(clockCountdown.matches("Due in \\d{2} : \\d{2} : \\d{2} : \\d{2}"), "Format should be DD : HH : MM : SS: " + clockCountdown);
+
+        // 2. Expired Task format: "Ended : Overdue ..." and Ash theme
+        RoutineTaskItem expiredTask = new RoutineTaskItem(102, 1, "Math 2207", "AK", "Monday", "08:30 - 09:50", "CT 1",
+                java.time.LocalDateTime.now().minusHours(2).minusMinutes(15)
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd (hh:mm a)", java.util.Locale.ENGLISH)));
+        assertTrue(expiredTask.getFormattedClockCountdown().startsWith("Ended"), "Expired task should show Ended");
+
+        RoutineTaskItem.TaskColorTheme ashTheme = expiredTask.getColorTheme();
+        assertTrue(ashTheme.isAsh(), "Theme should be Ash when time has ended");
+        assertEquals("#94a3b8", ashTheme.getAccentColor());
+        assertEquals("#f8fafc", ashTheme.getCardBg());
+
+        // 3. Color theme progression:
+        // > 10 Days: Calm Emerald Green
+        RoutineTaskItem day12Task = new RoutineTaskItem(103, 1, "CSE2008", "SH", "Monday", "08:30 - 09:50", "Project",
+                java.time.LocalDateTime.now().plusDays(12)
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd (hh:mm a)", java.util.Locale.ENGLISH)));
+        RoutineTaskItem.TaskColorTheme theme12 = day12Task.getColorTheme();
+        assertFalse(theme12.isAsh());
+        assertEquals("#059669", theme12.getAccentColor());
+
+        // 8 Days: Fresh Leaf Green
+        RoutineTaskItem day8Task = new RoutineTaskItem(104, 1, "CSE2008", "SH", "Monday", "08:30 - 09:50", "CT 2",
+                java.time.LocalDateTime.now().plusDays(8)
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd (hh:mm a)", java.util.Locale.ENGLISH)));
+        assertEquals("#16a34a", day8Task.getColorTheme().getAccentColor());
+
+        // 5 Days: Golden Amber / Yellow
+        RoutineTaskItem day5Task = new RoutineTaskItem(105, 1, "CSE2008", "SH", "Monday", "08:30 - 09:50", "Assignment",
+                java.time.LocalDateTime.now().plusDays(5)
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd (hh:mm a)", java.util.Locale.ENGLISH)));
+        assertEquals("#d97706", day5Task.getColorTheme().getAccentColor());
+
+        // 2 Days: Coral Orange
+        RoutineTaskItem day2Task = new RoutineTaskItem(106, 1, "CSE2008", "SH", "Monday", "08:30 - 09:50", "Quiz",
+                java.time.LocalDateTime.now().plusDays(2)
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd (hh:mm a)", java.util.Locale.ENGLISH)));
+        assertEquals("#ea580c", day2Task.getColorTheme().getAccentColor());
+
+        // 12 Hours (< 24h): Dark Cherry Red
+        RoutineTaskItem hour12Task = new RoutineTaskItem(107, 1, "CSE2008", "SH", "Monday", "08:30 - 09:50", "Final Paper",
+                java.time.LocalDateTime.now().plusHours(12)
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd (hh:mm a)", java.util.Locale.ENGLISH)));
+        assertEquals("#881337", hour12Task.getColorTheme().getAccentColor());
+
+        // 4. Activity Deletion from Database
+        long ts = System.currentTimeMillis();
+        DatabaseHelper.registerUser("taskuser" + ts + "@gmail.com", "taskuser" + ts, "Password123!");
+        User user = DatabaseHelper.authenticateUser("taskuser" + ts, "Password123!");
+        assertNotNull(user);
+
+        RoutineSlot slot = new RoutineSlot(user.getId(), "Monday", "08:30 - 09:50", "Math 2207", "AK");
+        List<SpecialActivity> activities = new ArrayList<>();
+        activities.add(new SpecialActivity("Midterm CT", "2026-10-20 (10:00 AM)"));
+        slot.setActivities(activities);
+
+        boolean saved = DatabaseHelper.saveRoutineSlot(slot);
+        assertTrue(saved);
+
+        Map<String, RoutineSlot> fetchedSlots = DatabaseHelper.getAllRoutineSlots(user.getId());
+        RoutineSlot fetchedSlot = fetchedSlots.get("Monday|||08:30 - 09:50");
+        assertNotNull(fetchedSlot);
+        assertEquals(1, fetchedSlot.getActivities().size());
+
+        int actId = fetchedSlot.getActivities().get(0).getId();
+        assertTrue(actId > 0, "Saved activity should have positive auto-generated ID");
+
+        // Delete activity
+        boolean deleted = DatabaseHelper.deleteRoutineActivity(actId);
+        assertTrue(deleted, "deleteRoutineActivity should return true");
+
+        Map<String, RoutineSlot> refreshedSlots = DatabaseHelper.getAllRoutineSlots(user.getId());
+        RoutineSlot refreshedSlot = refreshedSlots.get("Monday|||08:30 - 09:50");
+        assertNotNull(refreshedSlot);
+        assertEquals(0, refreshedSlot.getActivities().size(), "Activity should be deleted from slot");
+    }
 }
+
+
 

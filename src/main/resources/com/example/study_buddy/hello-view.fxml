@@ -102,10 +102,11 @@
             <VBox fx:id="notebookWorkspaceView" spacing="12.0" visible="false" managed="false"
                   style="-fx-background-color: #ffffff; -fx-padding: 16px; -fx-background-radius: 10px; -fx-border-color: #cbd5e1; -fx-border-radius: 10px;">
                 
-                <!-- Workspace Top Bar: Back Button, Topics Toggle, Breadcrumb, Status -->
+                <!-- Workspace Top Bar: Back Button, Topics Toggle, Tasks Toggle, Breadcrumb, Status -->
                 <HBox alignment="CENTER_LEFT" spacing="12.0" style="-fx-padding: 0 0 10px 0; -fx-border-color: #e2e8f0; -fx-border-width: 0 0 1px 0;">
                     <Button onAction="#handleBackToDashboard" styleClass="btn-secondary-action" text="◀ Back to Notebooks" />
                     <Button fx:id="toggleTopicsBtn" onAction="#handleToggleTopicsSidebar" styleClass="btn-secondary-action" text="📂 Topics" />
+                    <Button fx:id="notebookTasksBtn" onAction="#handleToggleRight" styleClass="btn-secondary-action" text="📋 Tasks" />
                     <Label fx:id="notebookBreadcrumbLabel" style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" text="Notebook Title" />
                     <Region HBox.hgrow="ALWAYS" />
                     <Label fx:id="workspaceStatusLabel" style="-fx-font-size: 11px; -fx-text-fill: #64748b;" text="" />
@@ -140,16 +141,26 @@
             </VBox>
         </StackPane>
 
-        <!-- Right Sidebar (Collapsible with smooth animation, closed by default) -->
+        <!-- Right Sidebar (Tasks & Deadlines, Collapsible with smooth animation, closed by default) -->
         <VBox fx:id="rightSidebar" maxWidth="0.0" minWidth="0.0" prefWidth="0.0" spacing="12.0"
               visible="false" managed="false"
               style="-fx-background-color: #ffffff; -fx-background-radius: 10px; -fx-border-color: #e2e8f0; -fx-border-radius: 10px; -fx-padding: 16px;">
-            <HBox alignment="CENTER_LEFT" spacing="8.0">
-                <Label style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" text="Right Sidebar" />
+            
+            <!-- Tasks Header: Title, Count Badge, Close Button -->
+            <HBox alignment="CENTER_LEFT" spacing="8.0" style="-fx-padding: 0 0 8px 0; -fx-border-color: #f1f5f9; -fx-border-width: 0 0 1px 0;">
+                <Label style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" text="📋 Tasks &amp; Deadlines" />
+                <Label fx:id="taskCountBadge" style="-fx-background-color: #e0e7ff; -fx-text-fill: #4338ca; -fx-font-size: 11px; -fx-font-weight: bold; -fx-background-radius: 10px; -fx-padding: 2px 7px;" text="0" />
+                <Region HBox.hgrow="ALWAYS" />
+                <Button onAction="#handleToggleRight" style="-fx-background-color: transparent; -fx-text-fill: #94a3b8; -fx-font-size: 13px; -fx-cursor: hand; -fx-padding: 2px 6px;" text="✕" />
             </HBox>
-            <VBox fx:id="rightSidebarContent" spacing="8.0" VBox.vgrow="ALWAYS">
-                <!-- Clean container: features will be added later -->
-            </VBox>
+
+            <!-- Scrollable Tasks List -->
+            <ScrollPane fitToWidth="true" fitToHeight="true"
+                        style="-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent;" VBox.vgrow="ALWAYS">
+                <VBox fx:id="tasksContainer" spacing="10.0">
+                    <!-- Populated dynamically with live ticking countdown cards -->
+                </VBox>
+            </ScrollPane>
         </VBox>
 
     </HBox>

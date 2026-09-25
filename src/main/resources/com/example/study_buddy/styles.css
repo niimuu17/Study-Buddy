@@ -351,6 +351,61 @@
     -fx-text-fill: #4338ca;
 }
 
+/* Tasks & Deadlines Sidebar */
+.task-card {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 8px;
+    -fx-border-color: #e2e8f0;
+    -fx-border-radius: 8px;
+    -fx-border-width: 1px;
+    -fx-padding: 10px 12px;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(three-pass-box, rgba(15, 23, 42, 0.04), 6, 0, 0, 1);
+}
+
+.task-card:hover {
+    -fx-border-color: #cbd5e1;
+    -fx-background-color: #fafafa;
+    -fx-effect: dropshadow(three-pass-box, rgba(79, 70, 229, 0.12), 10, 0, 0, 2);
+}
+
+.task-subject-badge {
+    -fx-background-color: #e0e7ff;
+    -fx-text-fill: #4338ca;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 4px;
+    -fx-padding: 2px 6px;
+}
+
+.task-countdown-normal {
+    -fx-background-color: #eef2ff;
+    -fx-text-fill: #3730a3;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 6px;
+    -fx-padding: 4px 8px;
+}
+
+.task-countdown-urgent {
+    -fx-background-color: #fef3c7;
+    -fx-text-fill: #92400e;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 6px;
+    -fx-padding: 4px 8px;
+}
+
+.task-countdown-overdue {
+    -fx-background-color: #fee2e2;
+    -fx-text-fill: #b91c1c;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 6px;
+    -fx-padding: 4px 8px;
+}
+
+
 
 
 

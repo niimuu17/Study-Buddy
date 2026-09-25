@@ -385,6 +385,22 @@ public class DatabaseHelper {
     }
 
     /**
+     * Deletes a specific routine activity by its primary key ID.
+     */
+    public static boolean deleteRoutineActivity(int activityId) {
+        String sql = "DELETE FROM routine_activities WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, activityId);
+            pstmt.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
      * Retrieves the user's active weekdays. Returns an empty list if not configured yet (user starts from zero).
      */
     public static java.util.List<String> getUserWeekdays(int userId) {
