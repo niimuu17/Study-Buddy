@@ -1,8 +1,11 @@
 package com.example.study_buddy;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 
 import java.io.IOException;
@@ -22,11 +25,21 @@ public class HelloApplication extends Application {
         FXMLLoader fxmlLoader = new FXMLLoader(HelloApplication.class.getResource("login-view.fxml"));
         Scene scene = new Scene(fxmlLoader.load());
 
+        // Pre-fit window to primary screen visual bounds to prevent floating window appearance
+        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+        stage.setX(bounds.getMinX());
+        stage.setY(bounds.getMinY());
+        stage.setWidth(bounds.getWidth());
+        stage.setHeight(bounds.getHeight());
+
         stage.setTitle("Study Buddy - Login & Sign Up");
         stage.setScene(scene);
         stage.setResizable(true);
-        stage.setMaximized(true);
         stage.show();
+
+        // Maximize after show() to ensure native window manager respects maximized state
+        stage.setMaximized(true);
+        Platform.runLater(() -> stage.setMaximized(true));
     }
 
     public static void main(String[] args) {

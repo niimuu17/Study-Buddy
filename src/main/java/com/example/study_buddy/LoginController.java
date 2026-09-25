@@ -198,6 +198,7 @@ public class LoginController {
             stage.setTitle("Study Buddy - Class Routine Dashboard");
             stage.setResizable(true);
             stage.setMaximized(true);
+            javafx.application.Platform.runLater(() -> stage.setMaximized(true));
         } catch (IOException e) {
             setErrorMessage(loginMessageLabel, "Error loading main screen: " + e.getMessage());
             e.printStackTrace();

@@ -37,7 +37,6 @@ public class HelloController {
     // Center Workspace & Navigation
     @FXML private VBox mainMenuView;
     @FXML private ScrollPane routineView;
-    @FXML private HBox scheduleControls;
     @FXML private Button navHomeBtn;
     @FXML private Button navRoutineBtn;
 
@@ -85,7 +84,7 @@ public class HelloController {
     }
 
     /**
-     * Switches center workspace to the blank Main Menu and hides schedule controls.
+     * Switches center workspace to the blank Main Menu.
      */
     @FXML
     public void handleOpenMainMenu() {
@@ -97,15 +96,11 @@ public class HelloController {
             routineView.setVisible(false);
             routineView.setManaged(false);
         }
-        if (scheduleControls != null) {
-            scheduleControls.setVisible(false);
-            scheduleControls.setManaged(false);
-        }
         updateNavActiveState(navHomeBtn);
     }
 
     /**
-     * Switches center workspace to the Weekly Class Routine and reveals schedule controls.
+     * Switches center workspace to the Weekly Class Routine.
      */
     @FXML
     public void handleOpenRoutine() {
@@ -116,10 +111,6 @@ public class HelloController {
         if (routineView != null) {
             routineView.setVisible(true);
             routineView.setManaged(true);
-        }
-        if (scheduleControls != null) {
-            scheduleControls.setVisible(true);
-            scheduleControls.setManaged(true);
         }
         updateNavActiveState(navRoutineBtn);
     }
@@ -211,7 +202,7 @@ public class HelloController {
             timeHeader.setAlignment(Pos.CENTER);
             timeHeader.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
             timeHeader.setPrefSize(160, 48);
-            timeHeader.setTooltip(new Tooltip("Right-click to add slot to left/right, edit, or delete"));
+            timeHeader.setTooltip(new Tooltip("Click to add slot to left/right, edit, or delete"));
             timeHeader.setStyle("-fx-font-weight: bold; -fx-font-size: 11px; -fx-text-fill: #312e81; "
                     + "-fx-background-color: #e0e7ff; -fx-background-radius: 8px; -fx-border-color: #c7d2fe; -fx-border-radius: 8px; -fx-cursor: hand;");
 
@@ -232,23 +223,21 @@ public class HelloController {
             int dayIndex = row;
             String day = weekdays.get(row);
 
-            // Weekday Header Cell (Right-click for options, click to rename)
+            // Weekday Header Cell (Click to add above/below, rename, or delete)
             Label dayHeader = new Label(day + "\n⚙");
             dayHeader.setAlignment(Pos.CENTER);
             dayHeader.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
             dayHeader.setPrefSize(130, 85);
-            dayHeader.setTooltip(new Tooltip("Right-click to add day above/below, rename, or delete"));
+            dayHeader.setTooltip(new Tooltip("Click to add weekday above/below, rename, or delete"));
             dayHeader.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #1e293b; "
                     + "-fx-background-color: #f8fafc; -fx-background-radius: 8px; -fx-border-color: #e2e8f0; -fx-border-radius: 8px; -fx-cursor: hand;");
 
-            // Context menu for weekday operations (Add Above, Add Below, Rename, Delete)
+            // Context menu for weekday operations (Add Weekday Above, Add Weekday Below, Rename, Delete)
             ContextMenu weekdayMenu = createWeekdayContextMenu(dayIndex, day);
 
             dayHeader.setOnMouseClicked(e -> {
-                if (e.getButton() == MouseButton.SECONDARY) {
+                if (e.getButton() == MouseButton.SECONDARY || e.getButton() == MouseButton.PRIMARY) {
                     weekdayMenu.show(dayHeader, e.getScreenX(), e.getScreenY());
-                } else if (e.getButton() == MouseButton.PRIMARY) {
-                    handleRenameWeekday(dayIndex, day);
                 }
             });
 
@@ -343,16 +332,16 @@ public class HelloController {
     private ContextMenu createWeekdayContextMenu(int index, String currentDay) {
         ContextMenu menu = new ContextMenu();
 
-        MenuItem addAboveItem = new MenuItem("⬆ Add Day Above");
+        MenuItem addAboveItem = new MenuItem("⬆ Add Weekday Above");
         addAboveItem.setOnAction(e -> promptAddWeekdayAt(index, "Above"));
 
-        MenuItem addBelowItem = new MenuItem("⬇ Add Day Below");
+        MenuItem addBelowItem = new MenuItem("⬇ Add Weekday Below");
         addBelowItem.setOnAction(e -> promptAddWeekdayAt(index + 1, "Below"));
 
-        MenuItem renameItem = new MenuItem("✏ Rename Day");
+        MenuItem renameItem = new MenuItem("✏ Rename Weekday");
         renameItem.setOnAction(e -> handleRenameWeekday(index, currentDay));
 
-        MenuItem deleteItem = new MenuItem("🗑 Delete Day");
+        MenuItem deleteItem = new MenuItem("🗑 Delete Weekday");
         deleteItem.setOnAction(e -> {
             weekdays.remove(index);
             DatabaseHelper.saveUserRoutineConfig(currentUser.getId(), weekdays, timeSlots);
@@ -500,47 +489,6 @@ public class HelloController {
         return card;
     }
 
-    /**
-     * Adds a new weekday to the routine.
-     */
-    @FXML
-    public void handleAddWeekday() {
-        if (currentUser == null) return;
-        promptAddWeekdayAt(weekdays.size(), "End");
-    }
-
-    /**
-     * Removes the last weekday from the routine.
-     */
-    @FXML
-    public void handleRemoveWeekday() {
-        if (currentUser == null || weekdays.isEmpty()) return;
-
-        weekdays.remove(weekdays.size() - 1);
-        DatabaseHelper.saveUserRoutineConfig(currentUser.getId(), weekdays, timeSlots);
-        buildRoutineGrid();
-    }
-
-    /**
-     * Adds an editable time slot with conflict check.
-     */
-    @FXML
-    public void handleAddTimeSlot() {
-        if (currentUser == null) return;
-        promptAddSlotWithConflictCheck(timeSlots.size(), "End");
-    }
-
-    /**
-     * Removes the last time slot.
-     */
-    @FXML
-    public void handleRemoveTimeSlot() {
-        if (currentUser == null || timeSlots.isEmpty()) return;
-
-        timeSlots.remove(timeSlots.size() - 1);
-        DatabaseHelper.saveUserRoutineConfig(currentUser.getId(), weekdays, timeSlots);
-        buildRoutineGrid();
-    }
 
     /**
      * Logs out the user and redirects back to the login portal.
@@ -558,6 +506,7 @@ public class HelloController {
             stage.setTitle("Study Buddy - Login & Sign Up");
             stage.setMaximized(true);
             stage.setResizable(true);
+            javafx.application.Platform.runLater(() -> stage.setMaximized(true));
         } catch (IOException e) {
             e.printStackTrace();
         }

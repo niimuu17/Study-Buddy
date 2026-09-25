@@ -33,15 +33,7 @@
 
         <Region HBox.hgrow="ALWAYS" />
 
-        <!-- Schedule Configuration Controls (Visible only on Routine view) -->
-        <HBox fx:id="scheduleControls" alignment="CENTER" spacing="6.0" visible="false" managed="false">
-            <Button onAction="#handleAddWeekday" style="-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 7px 11px;" text="+ Add Day" />
-            <Button onAction="#handleRemoveWeekday" style="-fx-background-color: #f1f5f9; -fx-text-fill: #64748b; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 7px 11px;" text="- Remove Day" />
-            <Button onAction="#handleAddTimeSlot" style="-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 7px 11px;" text="+ Add Slot" />
-            <Button onAction="#handleRemoveTimeSlot" style="-fx-background-color: #f1f5f9; -fx-text-fill: #64748b; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 7px 11px;" text="- Remove Slot" />
-        </HBox>
 
-        <Region prefWidth="8.0" />
 
         <!-- Right Sidebar Toggle Button -->
         <Button fx:id="rightToggleBtn" onAction="#handleToggleRight" styleClass="btn-toggle" text="Sidebar ▤" />
