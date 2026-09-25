@@ -34,6 +34,13 @@ public class HelloController {
     @FXML private Button logoutButton;
     @FXML private GridPane routineGrid;
 
+    // Center Workspace & Navigation
+    @FXML private VBox mainMenuView;
+    @FXML private ScrollPane routineView;
+    @FXML private HBox scheduleControls;
+    @FXML private Button navHomeBtn;
+    @FXML private Button navRoutineBtn;
+
     // Sidebar components
     @FXML private Button leftToggleBtn;
     @FXML private Button rightToggleBtn;
@@ -74,6 +81,59 @@ public class HelloController {
         if (rightToggleBtn != null) {
             rightToggleBtn.setText("Sidebar ▤");
         }
+        handleOpenMainMenu();
+    }
+
+    /**
+     * Switches center workspace to the blank Main Menu and hides schedule controls.
+     */
+    @FXML
+    public void handleOpenMainMenu() {
+        if (mainMenuView != null) {
+            mainMenuView.setVisible(true);
+            mainMenuView.setManaged(true);
+        }
+        if (routineView != null) {
+            routineView.setVisible(false);
+            routineView.setManaged(false);
+        }
+        if (scheduleControls != null) {
+            scheduleControls.setVisible(false);
+            scheduleControls.setManaged(false);
+        }
+        updateNavActiveState(navHomeBtn);
+    }
+
+    /**
+     * Switches center workspace to the Weekly Class Routine and reveals schedule controls.
+     */
+    @FXML
+    public void handleOpenRoutine() {
+        if (mainMenuView != null) {
+            mainMenuView.setVisible(false);
+            mainMenuView.setManaged(false);
+        }
+        if (routineView != null) {
+            routineView.setVisible(true);
+            routineView.setManaged(true);
+        }
+        if (scheduleControls != null) {
+            scheduleControls.setVisible(true);
+            scheduleControls.setManaged(true);
+        }
+        updateNavActiveState(navRoutineBtn);
+    }
+
+    private void updateNavActiveState(Button activeButton) {
+        if (navHomeBtn != null) {
+            navHomeBtn.getStyleClass().remove("nav-item-active");
+        }
+        if (navRoutineBtn != null) {
+            navRoutineBtn.getStyleClass().remove("nav-item-active");
+        }
+        if (activeButton != null && !activeButton.getStyleClass().contains("nav-item-active")) {
+            activeButton.getStyleClass().add("nav-item-active");
+        }
     }
 
     /**
@@ -90,6 +150,7 @@ public class HelloController {
             this.timeSlots = DatabaseHelper.getUserTimeSlots(user.getId());
 
             buildRoutineGrid();
+            handleOpenMainMenu();
         }
     }
 

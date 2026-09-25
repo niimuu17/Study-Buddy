@@ -170,4 +170,30 @@
     -fx-background-color: #cbd5e1;
 }
 
+/* Sidebar Navigation Items */
+.nav-item {
+    -fx-background-color: transparent;
+    -fx-text-fill: #334155;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-alignment: CENTER_LEFT;
+    -fx-padding: 10px 14px;
+    -fx-background-radius: 8px;
+    -fx-cursor: hand;
+    -fx-border-color: transparent;
+}
+
+.nav-item:hover {
+    -fx-background-color: #f1f5f9;
+    -fx-text-fill: #1e293b;
+}
+
+.nav-item-active {
+    -fx-background-color: #e0e7ff;
+    -fx-text-fill: #4338ca;
+    -fx-border-color: #c7d2fe;
+    -fx-border-radius: 8px;
+}
+
+
 
