@@ -255,4 +255,136 @@ public class DatabaseHelperTest {
         assertNotNull(errBackwards);
         assertTrue(errBackwards.contains("End time must be after start time"));
     }
+
+    @Test
+    public void testNotebookHierarchyCrud() {
+        long ts = System.currentTimeMillis();
+        String username = "nbuser" + ts;
+        DatabaseHelper.registerUser("nb" + ts + "@gmail.com", username, "Secret@123");
+        User user = DatabaseHelper.authenticateUser(username, "Secret@123");
+        assertNotNull(user);
+
+        // 1. Create Notebook
+        int notebookId = DatabaseHelper.createNotebook(user.getId(), "Data Structures", "Course CS201", "#4f46e5");
+        assertTrue(notebookId > 0, "Notebook should be created");
+
+        List<Notebook> notebooks = DatabaseHelper.getUserNotebooks(user.getId());
+        assertEquals(1, notebooks.size());
+        assertEquals("Data Structures", notebooks.get(0).getTitle());
+        assertEquals("#4f46e5", notebooks.get(0).getColorHex());
+
+        // 2. Update Notebook
+        boolean updated = DatabaseHelper.updateNotebook(notebookId, "Advanced Data Structures", "Updated Desc", "#059669");
+        assertTrue(updated);
+        Notebook reloadedNb = DatabaseHelper.getNotebookById(notebookId);
+        assertNotNull(reloadedNb);
+        assertEquals("Advanced Data Structures", reloadedNb.getTitle());
+        assertEquals("#059669", reloadedNb.getColorHex());
+
+        // 3. Create Topic
+        int topicId = DatabaseHelper.createTopic(notebookId, "Binary Trees");
+        assertTrue(topicId > 0);
+
+        List<Topic> topics = DatabaseHelper.getTopicsByNotebook(notebookId);
+        assertEquals(1, topics.size());
+        assertEquals("Binary Trees", topics.get(0).getTitle());
+
+        // 4. Rename Topic
+        boolean topicRenamed = DatabaseHelper.renameTopic(topicId, "AVL & Red-Black Trees");
+        assertTrue(topicRenamed);
+
+        // 5. Create Page
+        int pageId = DatabaseHelper.createPage(topicId, "Tree Balancing");
+        assertTrue(pageId > 0);
+
+        Page page = DatabaseHelper.getPageById(pageId);
+        assertNotNull(page);
+        assertEquals("Tree Balancing", page.getTitle());
+
+        // 6. Update Page Content with JSON
+        List<PageBlock> blocks = new ArrayList<>();
+        blocks.add(new PageBlock("b1", PageBlock.TYPE_TEXT, "Notes on rotations", ""));
+        blocks.add(new PageBlock("b2", PageBlock.TYPE_CODE, "void rotateLeft() {}", "Java"));
+        String json = PageBlock.serializeList(blocks);
+
+        boolean pageUpdated = DatabaseHelper.updatePage(pageId, "Tree Balancing & Rotations", json);
+        assertTrue(pageUpdated);
+
+        Page reloadedPage = DatabaseHelper.getPageById(pageId);
+        assertNotNull(reloadedPage);
+        assertEquals("Tree Balancing & Rotations", reloadedPage.getTitle());
+        List<PageBlock> loadedBlocks = PageBlock.deserializeList(reloadedPage.getContentJson());
+        assertEquals(2, loadedBlocks.size());
+        assertEquals(PageBlock.TYPE_TEXT, loadedBlocks.get(0).getType());
+        assertEquals("Notes on rotations", loadedBlocks.get(0).getContent());
+        assertEquals(PageBlock.TYPE_CODE, loadedBlocks.get(1).getType());
+        assertEquals("Java", loadedBlocks.get(1).getExtra());
+
+        // 7. Add Topic File Attachment
+        int fileId = DatabaseHelper.addTopicFile(topicId, "slides.pdf", "C:/study/slides.pdf", "pdf", 1024000);
+        assertTrue(fileId > 0);
+
+        List<TopicFile> files = DatabaseHelper.getFilesByTopic(topicId);
+        assertEquals(1, files.size());
+        assertEquals("slides.pdf", files.get(0).getOriginalName());
+        assertEquals("pdf", files.get(0).getFileExtension());
+        assertEquals("📕", files.get(0).getFileIcon());
+
+        // 8. Delete Topic File
+        boolean fileDeleted = DatabaseHelper.deleteTopicFile(fileId);
+        assertTrue(fileDeleted);
+        assertEquals(0, DatabaseHelper.getFilesByTopic(topicId).size());
+
+        // 9. Delete Page
+        boolean pageDeleted = DatabaseHelper.deletePage(pageId);
+        assertTrue(pageDeleted);
+        assertEquals(0, DatabaseHelper.getPagesByTopic(topicId).size());
+
+        // 10. Delete Topic
+        boolean topicDeleted = DatabaseHelper.deleteTopic(topicId);
+        assertTrue(topicDeleted);
+        assertEquals(0, DatabaseHelper.getTopicsByNotebook(notebookId).size());
+
+        // 11. Delete Notebook
+        boolean nbDeleted = DatabaseHelper.deleteNotebook(notebookId);
+        assertTrue(nbDeleted);
+        assertEquals(0, DatabaseHelper.getUserNotebooks(user.getId()).size());
+    }
+
+    @Test
+    public void testPageBlockSerialization() {
+        List<PageBlock> original = new ArrayList<>();
+        original.add(new PageBlock("id-1", PageBlock.TYPE_TEXT, "Hello world note with \"quotes\" and \n newlines!", ""));
+        original.add(new PageBlock("id-2", PageBlock.TYPE_CODE, "System.out.println(\"Hi\");", "Java"));
+        original.add(new PageBlock("id-3", PageBlock.TYPE_IMAGE, "C:/images/test.png", "Diagram 1"));
+
+        String json = PageBlock.serializeList(original);
+        assertNotNull(json);
+        assertTrue(json.startsWith("["));
+        assertTrue(json.endsWith("]"));
+
+        List<PageBlock> parsed = PageBlock.deserializeList(json);
+        assertEquals(3, parsed.size());
+
+        assertEquals("id-1", parsed.get(0).getId());
+        assertEquals(PageBlock.TYPE_TEXT, parsed.get(0).getType());
+        assertEquals("Hello world note with \"quotes\" and \n newlines!", parsed.get(0).getContent());
+
+        assertEquals("id-2", parsed.get(1).getId());
+        assertEquals(PageBlock.TYPE_CODE, parsed.get(1).getType());
+        assertEquals("System.out.println(\"Hi\");", parsed.get(1).getContent());
+        assertEquals("Java", parsed.get(1).getExtra());
+
+        assertEquals("id-3", parsed.get(2).getId());
+        assertEquals(PageBlock.TYPE_IMAGE, parsed.get(2).getType());
+        assertEquals("C:/images/test.png", parsed.get(2).getContent());
+        assertEquals("Diagram 1", parsed.get(2).getExtra());
+
+        // Legacy fallback test
+        List<PageBlock> legacy = PageBlock.deserializeList("Plain text note without json brackets");
+        assertEquals(1, legacy.size());
+        assertEquals(PageBlock.TYPE_TEXT, legacy.get(0).getType());
+        assertEquals("Plain text note without json brackets", legacy.get(0).getContent());
+    }
 }
+

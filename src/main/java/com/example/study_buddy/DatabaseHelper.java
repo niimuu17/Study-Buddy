@@ -9,6 +9,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Helper class to manage SQLite database operations for Study Buddy.
@@ -23,7 +25,11 @@ public class DatabaseHelper {
      * Gets a connection to the SQLite database.
      */
     public static Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(DB_URL);
+        Connection conn = DriverManager.getConnection(DB_URL);
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("PRAGMA foreign_keys = ON;");
+        }
+        return conn;
     }
 
     /**
@@ -64,12 +70,57 @@ public class DatabaseHelper {
                 + "FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE"
                 + ");";
 
+        String createNotebooksTable = "CREATE TABLE IF NOT EXISTS notebooks ("
+                + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "user_id INTEGER NOT NULL, "
+                + "title TEXT NOT NULL, "
+                + "description TEXT, "
+                + "color_hex TEXT DEFAULT '#4f46e5', "
+                + "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                + "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                + "FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE"
+                + ");";
+
+        String createTopicsTable = "CREATE TABLE IF NOT EXISTS topics ("
+                + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "notebook_id INTEGER NOT NULL, "
+                + "title TEXT NOT NULL, "
+                + "order_index INTEGER DEFAULT 0, "
+                + "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                + "FOREIGN KEY(notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE"
+                + ");";
+
+        String createPagesTable = "CREATE TABLE IF NOT EXISTS pages ("
+                + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "topic_id INTEGER NOT NULL, "
+                + "title TEXT NOT NULL, "
+                + "content_json TEXT DEFAULT '', "
+                + "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                + "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                + "FOREIGN KEY(topic_id) REFERENCES topics(id) ON DELETE CASCADE"
+                + ");";
+
+        String createTopicFilesTable = "CREATE TABLE IF NOT EXISTS topic_files ("
+                + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "topic_id INTEGER NOT NULL, "
+                + "original_name TEXT NOT NULL, "
+                + "stored_file_path TEXT NOT NULL, "
+                + "file_extension TEXT, "
+                + "file_size_bytes INTEGER DEFAULT 0, "
+                + "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                + "FOREIGN KEY(topic_id) REFERENCES topics(id) ON DELETE CASCADE"
+                + ");";
+
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
             stmt.execute(createUsersTable);
             stmt.execute(createSlotsTable);
             stmt.execute(createActivitiesTable);
             stmt.execute(createConfigTable);
+            stmt.execute(createNotebooksTable);
+            stmt.execute(createTopicsTable);
+            stmt.execute(createPagesTable);
+            stmt.execute(createTopicFilesTable);
         } catch (SQLException e) {
             System.err.println("Failed to initialize database: " + e.getMessage());
             e.printStackTrace();
@@ -446,5 +497,371 @@ public class DatabaseHelper {
             saveUserRoutineConfig(userId, getUserWeekdays(userId), slots);
         }
         return true;
+    }
+
+    // ==========================================
+    // NOTEBOOK CRUD OPERATIONS
+    // ==========================================
+
+    public static int createNotebook(int userId, String title, String description, String colorHex) {
+        String sql = "INSERT INTO notebooks (user_id, title, description, color_hex, created_at, updated_at) "
+                   + "VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setInt(1, userId);
+            pstmt.setString(2, title.trim());
+            pstmt.setString(3, description != null ? description.trim() : "");
+            pstmt.setString(4, (colorHex != null && !colorHex.isEmpty()) ? colorHex : "#4f46e5");
+            pstmt.executeUpdate();
+            try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return -1;
+    }
+
+    public static List<Notebook> getUserNotebooks(int userId) {
+        List<Notebook> list = new ArrayList<>();
+        String sql = "SELECT n.id, n.user_id, n.title, n.description, n.color_hex, n.created_at, n.updated_at, "
+                   + "       COUNT(DISTINCT t.id) AS topic_count, "
+                   + "       COUNT(DISTINCT p.id) AS page_count "
+                   + "FROM notebooks n "
+                   + "LEFT JOIN topics t ON t.notebook_id = n.id "
+                   + "LEFT JOIN pages p ON p.topic_id = t.id "
+                   + "WHERE n.user_id = ? "
+                   + "GROUP BY n.id "
+                   + "ORDER BY n.updated_at DESC";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new Notebook(
+                            rs.getInt("id"),
+                            rs.getInt("user_id"),
+                            rs.getString("title"),
+                            rs.getString("description"),
+                            rs.getString("color_hex"),
+                            rs.getInt("topic_count"),
+                            rs.getInt("page_count"),
+                            rs.getString("created_at"),
+                            rs.getString("updated_at")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    public static Notebook getNotebookById(int notebookId) {
+        String sql = "SELECT n.id, n.user_id, n.title, n.description, n.color_hex, n.created_at, n.updated_at, "
+                   + "       COUNT(DISTINCT t.id) AS topic_count, "
+                   + "       COUNT(DISTINCT p.id) AS page_count "
+                   + "FROM notebooks n "
+                   + "LEFT JOIN topics t ON t.notebook_id = n.id "
+                   + "LEFT JOIN pages p ON p.topic_id = t.id "
+                   + "WHERE n.id = ? "
+                   + "GROUP BY n.id";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, notebookId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return new Notebook(
+                            rs.getInt("id"),
+                            rs.getInt("user_id"),
+                            rs.getString("title"),
+                            rs.getString("description"),
+                            rs.getString("color_hex"),
+                            rs.getInt("topic_count"),
+                            rs.getInt("page_count"),
+                            rs.getString("created_at"),
+                            rs.getString("updated_at")
+                    );
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static boolean updateNotebook(int notebookId, String title, String description, String colorHex) {
+        String sql = "UPDATE notebooks SET title = ?, description = ?, color_hex = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, title.trim());
+            pstmt.setString(2, description != null ? description.trim() : "");
+            pstmt.setString(3, colorHex);
+            pstmt.setInt(4, notebookId);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public static boolean deleteNotebook(int notebookId) {
+        String sql = "DELETE FROM notebooks WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, notebookId);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // ==========================================
+    // TOPIC CRUD OPERATIONS
+    // ==========================================
+
+    public static int createTopic(int notebookId, String title) {
+        String sql = "INSERT INTO topics (notebook_id, title, order_index, created_at) "
+                   + "VALUES (?, ?, (SELECT COALESCE(MAX(order_index), 0) + 1 FROM topics WHERE notebook_id = ?), CURRENT_TIMESTAMP)";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setInt(1, notebookId);
+            pstmt.setString(2, title.trim());
+            pstmt.setInt(3, notebookId);
+            pstmt.executeUpdate();
+
+            // Touch notebook's updated_at
+            touchNotebookUpdated(conn, notebookId);
+
+            try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return -1;
+    }
+
+    public static List<Topic> getTopicsByNotebook(int notebookId) {
+        List<Topic> topics = new ArrayList<>();
+        String sql = "SELECT id, notebook_id, title, order_index, created_at FROM topics WHERE notebook_id = ? ORDER BY order_index ASC, id ASC";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, notebookId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    Topic topic = new Topic(
+                            rs.getInt("id"),
+                            rs.getInt("notebook_id"),
+                            rs.getString("title"),
+                            rs.getInt("order_index"),
+                            rs.getString("created_at")
+                    );
+                    topic.setPages(getPagesByTopic(topic.getId()));
+                    topic.setFiles(getFilesByTopic(topic.getId()));
+                    topics.add(topic);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return topics;
+    }
+
+    public static boolean renameTopic(int topicId, String newTitle) {
+        String sql = "UPDATE topics SET title = ? WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, newTitle.trim());
+            pstmt.setInt(2, topicId);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public static boolean deleteTopic(int topicId) {
+        String sql = "DELETE FROM topics WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, topicId);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // ==========================================
+    // PAGE CRUD OPERATIONS
+    // ==========================================
+
+    public static int createPage(int topicId, String title) {
+        String sql = "INSERT INTO pages (topic_id, title, content_json, created_at, updated_at) "
+                   + "VALUES (?, ?, '', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setInt(1, topicId);
+            pstmt.setString(2, (title != null && !title.trim().isEmpty()) ? title.trim() : "Untitled Page");
+            pstmt.executeUpdate();
+            try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return -1;
+    }
+
+    public static List<Page> getPagesByTopic(int topicId) {
+        List<Page> list = new ArrayList<>();
+        String sql = "SELECT id, topic_id, title, content_json, created_at, updated_at FROM pages WHERE topic_id = ? ORDER BY id ASC";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, topicId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new Page(
+                            rs.getInt("id"),
+                            rs.getInt("topic_id"),
+                            rs.getString("title"),
+                            rs.getString("content_json"),
+                            rs.getString("created_at"),
+                            rs.getString("updated_at")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    public static Page getPageById(int pageId) {
+        String sql = "SELECT id, topic_id, title, content_json, created_at, updated_at FROM pages WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, pageId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return new Page(
+                            rs.getInt("id"),
+                            rs.getInt("topic_id"),
+                            rs.getString("title"),
+                            rs.getString("content_json"),
+                            rs.getString("created_at"),
+                            rs.getString("updated_at")
+                    );
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static boolean updatePage(int pageId, String title, String contentJson) {
+        String sql = "UPDATE pages SET title = ?, content_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, (title != null && !title.trim().isEmpty()) ? title.trim() : "Untitled Page");
+            pstmt.setString(2, contentJson != null ? contentJson : "");
+            pstmt.setInt(3, pageId);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public static boolean deletePage(int pageId) {
+        String sql = "DELETE FROM pages WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, pageId);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // ==========================================
+    // TOPIC FILE ATTACHMENTS CRUD
+    // ==========================================
+
+    public static int addTopicFile(int topicId, String originalName, String storedPath, String ext, long sizeBytes) {
+        String sql = "INSERT INTO topic_files (topic_id, original_name, stored_file_path, file_extension, file_size_bytes, created_at) "
+                   + "VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setInt(1, topicId);
+            pstmt.setString(2, originalName);
+            pstmt.setString(3, storedPath);
+            pstmt.setString(4, ext != null ? ext.toLowerCase() : "");
+            pstmt.setLong(5, sizeBytes);
+            pstmt.executeUpdate();
+            try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return -1;
+    }
+
+    public static List<TopicFile> getFilesByTopic(int topicId) {
+        List<TopicFile> list = new ArrayList<>();
+        String sql = "SELECT id, topic_id, original_name, stored_file_path, file_extension, file_size_bytes, created_at FROM topic_files WHERE topic_id = ? ORDER BY id ASC";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, topicId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new TopicFile(
+                            rs.getInt("id"),
+                            rs.getInt("topic_id"),
+                            rs.getString("original_name"),
+                            rs.getString("stored_file_path"),
+                            rs.getString("file_extension"),
+                            rs.getLong("file_size_bytes"),
+                            rs.getString("created_at")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    public static boolean deleteTopicFile(int fileId) {
+        String sql = "DELETE FROM topic_files WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, fileId);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    private static void touchNotebookUpdated(Connection conn, int notebookId) {
+        String sql = "UPDATE notebooks SET updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, notebookId);
+            pstmt.executeUpdate();
+        } catch (SQLException ignored) {}
     }
 }

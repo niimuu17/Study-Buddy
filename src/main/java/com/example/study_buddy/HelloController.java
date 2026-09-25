@@ -15,8 +15,27 @@ import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
+import java.awt.Desktop;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
+import javax.imageio.ImageIO;
+
+import javafx.animation.PauseTransition;
+import javafx.scene.Node;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.image.PixelReader;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.stage.FileChooser;
 
 /**
  * Controller for the Study Buddy Home Screen and Weekly Class Routine.
@@ -34,11 +53,37 @@ public class HelloController {
     @FXML private Button logoutButton;
     @FXML private GridPane routineGrid;
 
+    // Top Navigation Bar
+    @FXML private HBox appTopBar;
+
     // Center Workspace & Navigation
     @FXML private VBox mainMenuView;
     @FXML private ScrollPane routineView;
     @FXML private Button navHomeBtn;
     @FXML private Button navRoutineBtn;
+
+    // Notebooks (Main Menu)
+    @FXML private Button myNotebooksBtn;
+    @FXML private Button newNotebookBtn;
+    @FXML private VBox notebooksContentArea;
+    @FXML private FlowPane notebooksGrid;
+
+    // Notebook Workspace View
+    @FXML private VBox notebookWorkspaceView;
+    @FXML private Button toggleTopicsBtn;
+    @FXML private Label notebookBreadcrumbLabel;
+    @FXML private Label workspaceStatusLabel;
+    @FXML private VBox topicsSidebar;
+    @FXML private VBox topicsListContainer;
+    @FXML private VBox pagePlaygroundContainer;
+
+    private boolean isTopicsSidebarOpen = true;
+
+    private Notebook currentNotebook;
+    private Topic currentTopic;
+    private Page currentPage;
+    private List<PageBlock> currentPageBlocks = new ArrayList<>();
+    private VBox blocksContainer;
 
     // Sidebar components
     @FXML private Button leftToggleBtn;
@@ -80,6 +125,17 @@ public class HelloController {
         if (rightToggleBtn != null) {
             rightToggleBtn.setText("Sidebar ▤");
         }
+        if (notebookWorkspaceView != null) {
+            notebookWorkspaceView.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+                if (event.isControlDown() && event.getCode() == KeyCode.V) {
+                    Clipboard clipboard = Clipboard.getSystemClipboard();
+                    if (clipboard.hasImage() && currentPage != null) {
+                        event.consume();
+                        handlePasteClipboardImage();
+                    }
+                }
+            });
+        }
         handleOpenMainMenu();
     }
 
@@ -88,6 +144,10 @@ public class HelloController {
      */
     @FXML
     public void handleOpenMainMenu() {
+        if (appTopBar != null) {
+            appTopBar.setVisible(true);
+            appTopBar.setManaged(true);
+        }
         if (mainMenuView != null) {
             mainMenuView.setVisible(true);
             mainMenuView.setManaged(true);
@@ -95,6 +155,10 @@ public class HelloController {
         if (routineView != null) {
             routineView.setVisible(false);
             routineView.setManaged(false);
+        }
+        if (notebookWorkspaceView != null) {
+            notebookWorkspaceView.setVisible(false);
+            notebookWorkspaceView.setManaged(false);
         }
         updateNavActiveState(navHomeBtn);
     }
@@ -104,6 +168,10 @@ public class HelloController {
      */
     @FXML
     public void handleOpenRoutine() {
+        if (appTopBar != null) {
+            appTopBar.setVisible(true);
+            appTopBar.setManaged(true);
+        }
         if (mainMenuView != null) {
             mainMenuView.setVisible(false);
             mainMenuView.setManaged(false);
@@ -111,6 +179,10 @@ public class HelloController {
         if (routineView != null) {
             routineView.setVisible(true);
             routineView.setManaged(true);
+        }
+        if (notebookWorkspaceView != null) {
+            notebookWorkspaceView.setVisible(false);
+            notebookWorkspaceView.setManaged(false);
         }
         updateNavActiveState(navRoutineBtn);
     }
@@ -128,6 +200,1134 @@ public class HelloController {
     }
 
     /**
+     * Action handler for "My Notebooks".
+     */
+    @FXML
+    public void handleMyNotebooks() {
+        loadNotebooks();
+    }
+
+    /**
+     * Action handler for "+ New Notebook".
+     */
+    @FXML
+    public void handleNewNotebook() {
+        if (currentUser == null) return;
+        NotebookDialog.show(
+                mainMenuView.getScene().getWindow(),
+                currentUser.getId(),
+                null,
+                this::loadNotebooks
+        );
+    }
+
+    /**
+     * Loads and renders all notebooks belonging to the current user as modern interactive cards.
+     */
+    public void loadNotebooks() {
+        if (notebooksGrid == null || currentUser == null) return;
+        notebooksGrid.getChildren().clear();
+
+        List<Notebook> notebooks = DatabaseHelper.getUserNotebooks(currentUser.getId());
+
+        if (notebooks.isEmpty()) {
+            VBox emptyPrompt = new VBox(12);
+            emptyPrompt.setAlignment(Pos.CENTER);
+            emptyPrompt.setPadding(new Insets(36, 40, 36, 40));
+            emptyPrompt.setPrefWidth(550);
+            emptyPrompt.setStyle("-fx-background-color: #f8fafc; -fx-background-radius: 12px; -fx-border-color: #e2e8f0; -fx-border-radius: 12px; -fx-border-style: dashed;");
+
+            Label emptyIcon = new Label("📚");
+            emptyIcon.setStyle("-fx-font-size: 36px;");
+
+            Label emptyTitle = new Label("No Notebooks Yet");
+            emptyTitle.setStyle("-fx-font-size: 17px; -fx-font-weight: bold; -fx-text-fill: #1e293b;");
+
+            Label emptySub = new Label("Create your first notebook to organize topics, lecture slides, and notes.");
+            emptySub.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748b;");
+
+            Button createBtn = new Button("+ Create First Notebook");
+            createBtn.setStyle("-fx-background-color: #e0e7ff; -fx-text-fill: #4338ca; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 6px; -fx-padding: 8px 16px;");
+            createBtn.setOnAction(e -> handleNewNotebook());
+
+            emptyPrompt.getChildren().addAll(emptyIcon, emptyTitle, emptySub, createBtn);
+            notebooksGrid.getChildren().add(emptyPrompt);
+            return;
+        }
+
+        for (Notebook nb : notebooks) {
+            VBox card = createNotebookCard(nb);
+            notebooksGrid.getChildren().add(card);
+        }
+    }
+
+    /**
+     * Constructs a modern interactive card for a single notebook.
+     */
+    private VBox createNotebookCard(Notebook notebook) {
+        VBox card = new VBox();
+        card.setPrefSize(280, 160);
+        card.setMinSize(280, 160);
+        card.setMaxSize(280, 160);
+        card.getStyleClass().add("notebook-card");
+
+        String themeColor = (notebook.getColorHex() != null && !notebook.getColorHex().isEmpty())
+                ? notebook.getColorHex() : "#4f46e5";
+
+        // Top Accent Stripe
+        Region accentStripe = new Region();
+        accentStripe.setPrefHeight(6);
+        accentStripe.setMinHeight(6);
+        accentStripe.setStyle("-fx-background-color: " + themeColor + "; -fx-background-radius: 10px 10px 0 0;");
+
+        // Card Content Body
+        VBox body = new VBox(8);
+        body.setPadding(new Insets(12, 14, 12, 14));
+        VBox.setVgrow(body, Priority.ALWAYS);
+
+        // Header Row: Color dot + Title + Context Menu (Edit, Delete)
+        HBox headerRow = new HBox(8);
+        headerRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label dot = new Label("●");
+        dot.setStyle("-fx-font-size: 14px; -fx-text-fill: " + themeColor + ";");
+
+        Label titleLabel = new Label(notebook.getTitle());
+        titleLabel.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #1e293b;");
+        HBox.setHgrow(titleLabel, Priority.ALWAYS);
+
+        // Menu button (3 dots)
+        Button optionsBtn = new Button("⋮");
+        optionsBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #64748b; -fx-font-size: 16px; -fx-font-weight: bold; -fx-padding: 0 4px; -fx-cursor: hand;");
+
+        ContextMenu menu = new ContextMenu();
+        MenuItem editItem = new MenuItem("✏ Edit Details");
+        editItem.setOnAction(e -> NotebookDialog.show(
+                mainMenuView.getScene().getWindow(),
+                currentUser.getId(),
+                notebook,
+                this::loadNotebooks
+        ));
+
+        MenuItem deleteItem = new MenuItem("🗑 Delete Notebook");
+        deleteItem.setOnAction(e -> {
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Delete Notebook");
+            confirm.setHeaderText("Delete \"" + notebook.getTitle() + "\"?");
+            confirm.setContentText("All topics, pages, and attachments inside this notebook will be permanently deleted.");
+            Optional<ButtonType> result = confirm.showAndWait();
+            if (result.isPresent() && result.get() == ButtonType.OK) {
+                DatabaseHelper.deleteNotebook(notebook.getId());
+                loadNotebooks();
+            }
+        });
+
+        menu.getItems().addAll(editItem, new SeparatorMenuItem(), deleteItem);
+        optionsBtn.setOnAction(e -> menu.show(optionsBtn, javafx.geometry.Side.BOTTOM, 0, 0));
+
+        headerRow.getChildren().addAll(dot, titleLabel, optionsBtn);
+
+        // Description
+        Label descLabel = new Label(notebook.getDescription() != null && !notebook.getDescription().isEmpty()
+                ? notebook.getDescription() : "No description provided.");
+        descLabel.setWrapText(true);
+        descLabel.setMaxHeight(38);
+        descLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #64748b;");
+
+        Region spacer = new Region();
+        VBox.setVgrow(spacer, Priority.ALWAYS);
+
+        // Footer: Topics & Pages Counts + Open button
+        HBox footer = new HBox(8);
+        footer.setAlignment(Pos.CENTER_LEFT);
+
+        int topics = notebook.getTopicCount();
+        int pages = notebook.getPageCount();
+        String statsText = topics + (topics == 1 ? " Topic" : " Topics") + " · "
+                         + pages + (pages == 1 ? " Page" : " Pages");
+        Label statsLabel = new Label(statsText);
+        statsLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #4338ca; "
+                + "-fx-background-color: #eef2ff; -fx-padding: 3px 8px; -fx-background-radius: 4px;");
+
+        Region footerSpacer = new Region();
+        HBox.setHgrow(footerSpacer, Priority.ALWAYS);
+
+        Label openArrow = new Label("Open ➜");
+        openArrow.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #6366f1;");
+
+        footer.getChildren().addAll(statsLabel, footerSpacer, openArrow);
+
+        body.getChildren().addAll(headerRow, descLabel, spacer, footer);
+        card.getChildren().addAll(accentStripe, body);
+
+        // Card Click opens the notebook
+        card.setOnMouseClicked(e -> {
+            if (e.getTarget() != optionsBtn && !optionsBtn.isHover()) {
+                handleOpenNotebook(notebook);
+            }
+        });
+
+        return card;
+    }
+
+    /**
+     * Handles opening a notebook workspace.
+     */
+    private void handleOpenNotebook(Notebook notebook) {
+        openNotebookWorkspace(notebook);
+    }
+
+    /**
+     * Opens the interactive Notebook Workspace view.
+     */
+    public void openNotebookWorkspace(Notebook notebook) {
+        this.currentNotebook = notebook;
+        this.currentTopic = null;
+        this.currentPage = null;
+
+        // Hide main app top bar to give maximum vertical space to the notebook
+        if (appTopBar != null) {
+            appTopBar.setVisible(false);
+            appTopBar.setManaged(false);
+        }
+
+        if (mainMenuView != null) {
+            mainMenuView.setVisible(false);
+            mainMenuView.setManaged(false);
+        }
+        if (routineView != null) {
+            routineView.setVisible(false);
+            routineView.setManaged(false);
+        }
+        if (notebookWorkspaceView != null) {
+            notebookWorkspaceView.setVisible(true);
+            notebookWorkspaceView.setManaged(true);
+        }
+
+        if (notebookBreadcrumbLabel != null) {
+            notebookBreadcrumbLabel.setText("📘 " + notebook.getTitle());
+        }
+        if (workspaceStatusLabel != null) {
+            workspaceStatusLabel.setText("");
+        }
+
+        setTopicsSidebarOpen(true);
+        loadTopicsExplorer();
+    }
+
+    /**
+     * Navigates back from the Notebook Workspace to the main dashboard.
+     */
+    @FXML
+    public void handleBackToDashboard() {
+        if (appTopBar != null) {
+            appTopBar.setVisible(true);
+            appTopBar.setManaged(true);
+        }
+        handleOpenMainMenu();
+        loadNotebooks();
+    }
+
+    /**
+     * Toggles the visibility of the left Topics Explorer sidebar.
+     */
+    @FXML
+    public void handleToggleTopicsSidebar() {
+        setTopicsSidebarOpen(!isTopicsSidebarOpen);
+    }
+
+    /**
+     * Closes the Topics Explorer sidebar.
+     */
+    @FXML
+    public void handleCloseTopicsSidebar() {
+        setTopicsSidebarOpen(false);
+    }
+
+    private void setTopicsSidebarOpen(boolean open) {
+        this.isTopicsSidebarOpen = open;
+        if (topicsSidebar != null) {
+            topicsSidebar.setVisible(open);
+            topicsSidebar.setManaged(open);
+            if (open) {
+                topicsSidebar.setPrefWidth(280);
+                topicsSidebar.setMinWidth(240);
+            } else {
+                topicsSidebar.setPrefWidth(0);
+                topicsSidebar.setMinWidth(0);
+            }
+        }
+        if (toggleTopicsBtn != null) {
+            if (open) {
+                toggleTopicsBtn.setText("📂 Topics");
+                toggleTopicsBtn.setStyle("");
+            } else {
+                toggleTopicsBtn.setText("📂 Show Topics");
+                toggleTopicsBtn.setStyle("-fx-border-color: #6366f1; -fx-text-fill: #4338ca; -fx-background-color: #eef2ff;");
+            }
+        }
+    }
+
+    /**
+     * Loads the Topics, Pages, and File Attachments into the left explorer pane.
+     */
+    public void loadTopicsExplorer() {
+        if (topicsListContainer == null || currentNotebook == null) return;
+        topicsListContainer.getChildren().clear();
+
+        List<Topic> topics = DatabaseHelper.getTopicsByNotebook(currentNotebook.getId());
+
+        if (topics.isEmpty()) {
+            VBox emptyPrompt = new VBox(10);
+            emptyPrompt.setAlignment(Pos.CENTER);
+            emptyPrompt.setPadding(new Insets(24, 12, 24, 12));
+            emptyPrompt.setStyle("-fx-background-color: #ffffff; -fx-background-radius: 6px; -fx-border-color: #e2e8f0; -fx-border-radius: 6px; -fx-border-style: dashed;");
+
+            Label emptyLabel = new Label("No topics yet");
+            emptyLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #64748b;");
+
+            Button addTopicBtn = new Button("+ Add First Topic");
+            addTopicBtn.setStyle("-fx-background-color: #e0e7ff; -fx-text-fill: #4338ca; -fx-font-size: 11px; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 4px; -fx-padding: 6px 12px;");
+            addTopicBtn.setOnAction(e -> promptAddTopic());
+
+            emptyPrompt.getChildren().addAll(emptyLabel, addTopicBtn);
+            topicsListContainer.getChildren().add(emptyPrompt);
+            showEmptyPlaygroundState();
+            return;
+        }
+
+        Page firstPageToSelect = null;
+        Topic firstPageTopic = null;
+
+        for (Topic topic : topics) {
+            VBox topicSection = new VBox(4);
+
+            // Topic Header Bar
+            HBox topicHeader = new HBox(6);
+            topicHeader.setAlignment(Pos.CENTER_LEFT);
+            topicHeader.getStyleClass().add("topic-header");
+
+            Label folderIcon = new Label("📂");
+            folderIcon.setStyle("-fx-font-size: 13px;");
+
+            Label topicTitle = new Label(topic.getTitle());
+            topicTitle.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #1e293b;");
+            HBox.setHgrow(topicTitle, Priority.ALWAYS);
+
+            // Quick Add Page button
+            Button addPageBtn = new Button("+ Page");
+            addPageBtn.setTooltip(new Tooltip("Add new page to this topic"));
+            addPageBtn.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-size: 10px; -fx-font-weight: bold; -fx-background-radius: 4px; -fx-padding: 3px 6px; -fx-cursor: hand;");
+            addPageBtn.setOnAction(e -> promptAddPage(topic));
+
+            // Quick Add File button
+            Button addFileBtn = new Button("+ File");
+            addFileBtn.setTooltip(new Tooltip("Attach file (PDF, PPTX, Word, etc.) to this topic"));
+            addFileBtn.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-size: 10px; -fx-font-weight: bold; -fx-background-radius: 4px; -fx-padding: 3px 6px; -fx-cursor: hand;");
+            addFileBtn.setOnAction(e -> attachFileToTopic(topic));
+
+            // Options menu (Rename, Attach, Delete)
+            Button optionsBtn = new Button("⋮");
+            optionsBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #64748b; -fx-font-size: 13px; -fx-font-weight: bold; -fx-padding: 0 4px; -fx-cursor: hand;");
+
+            ContextMenu topicMenu = new ContextMenu();
+            MenuItem renameItem = new MenuItem("✏ Rename Topic");
+            renameItem.setOnAction(e -> promptRenameTopic(topic));
+
+            MenuItem attachFileItem = new MenuItem("📎 Attach File...");
+            attachFileItem.setOnAction(e -> attachFileToTopic(topic));
+
+            MenuItem deleteItem = new MenuItem("🗑 Delete Topic");
+            deleteItem.setOnAction(e -> deleteTopic(topic));
+
+            topicMenu.getItems().addAll(renameItem, attachFileItem, new SeparatorMenuItem(), deleteItem);
+            optionsBtn.setOnAction(e -> topicMenu.show(optionsBtn, javafx.geometry.Side.BOTTOM, 0, 0));
+
+            topicHeader.getChildren().addAll(folderIcon, topicTitle, addPageBtn, addFileBtn, optionsBtn);
+
+            // Pages & Files Container (Indented)
+            VBox childrenBox = new VBox(2);
+            childrenBox.setPadding(new Insets(2, 0, 4, 16));
+
+            // List Pages
+            for (Page page : topic.getPages()) {
+                if (firstPageToSelect == null) {
+                    firstPageToSelect = page;
+                    firstPageTopic = topic;
+                }
+
+                HBox pageRow = new HBox(6);
+                pageRow.setAlignment(Pos.CENTER_LEFT);
+                pageRow.getStyleClass().add("page-item");
+                if (currentPage != null && currentPage.getId() == page.getId()) {
+                    pageRow.getStyleClass().add("page-item-active");
+                }
+
+                Label pageIcon = new Label("📄");
+                pageIcon.setStyle("-fx-font-size: 12px;");
+
+                Label pageTitleLabel = new Label(page.getTitle());
+                pageTitleLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #334155;");
+                HBox.setHgrow(pageTitleLabel, Priority.ALWAYS);
+
+                Button pageMenuBtn = new Button("⋮");
+                pageMenuBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #94a3b8; -fx-font-size: 12px; -fx-padding: 0 2px; -fx-cursor: hand;");
+
+                ContextMenu pageMenu = new ContextMenu();
+                MenuItem renamePageItem = new MenuItem("✏ Rename Page");
+                renamePageItem.setOnAction(e -> promptRenamePage(topic, page));
+
+                MenuItem deletePageItem = new MenuItem("🗑 Delete Page");
+                deletePageItem.setOnAction(e -> deletePage(topic, page));
+
+                pageMenu.getItems().addAll(renamePageItem, new SeparatorMenuItem(), deletePageItem);
+                pageMenuBtn.setOnAction(e -> pageMenu.show(pageMenuBtn, javafx.geometry.Side.BOTTOM, 0, 0));
+
+                pageRow.getChildren().addAll(pageIcon, pageTitleLabel, pageMenuBtn);
+
+                pageRow.setOnMouseClicked(e -> {
+                    if (e.getTarget() != pageMenuBtn && !pageMenuBtn.isHover()) {
+                        selectPage(topic, page);
+                    }
+                });
+
+                childrenBox.getChildren().add(pageRow);
+            }
+
+            // List Attached Files (PDF, PPTX, etc.)
+            for (TopicFile file : topic.getFiles()) {
+                HBox fileRow = new HBox(6);
+                fileRow.setAlignment(Pos.CENTER_LEFT);
+                fileRow.getStyleClass().add("page-item");
+
+                Label fileIcon = new Label(file.getFileIcon());
+                fileIcon.setStyle("-fx-font-size: 12px;");
+
+                Label fileNameLabel = new Label(file.getOriginalName());
+                fileNameLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #475569;");
+                HBox.setHgrow(fileNameLabel, Priority.ALWAYS);
+
+                Label sizeLabel = new Label(file.getFormattedSize());
+                sizeLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #94a3b8;");
+
+                Button fileMenuBtn = new Button("⋮");
+                fileMenuBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #94a3b8; -fx-font-size: 12px; -fx-padding: 0 2px; -fx-cursor: hand;");
+
+                ContextMenu fileMenu = new ContextMenu();
+                MenuItem openItem = new MenuItem("▶ Open (Default App)");
+                openItem.setOnAction(e -> handleOpenFile(file));
+
+                MenuItem openWithItem = new MenuItem("⚙ Choose App (Open With...)");
+                openWithItem.setOnAction(e -> handleOpenWith(file));
+
+                MenuItem showInExplorerItem = new MenuItem("📁 Show in Explorer");
+                showInExplorerItem.setOnAction(e -> handleShowInExplorer(file));
+
+                MenuItem deleteFileItem = new MenuItem("🗑 Remove File");
+                deleteFileItem.setOnAction(e -> {
+                    DatabaseHelper.deleteTopicFile(file.getId());
+                    loadTopicsExplorer();
+                });
+
+                fileMenu.getItems().addAll(openItem, openWithItem, showInExplorerItem, new SeparatorMenuItem(), deleteFileItem);
+                fileMenuBtn.setOnAction(e -> fileMenu.show(fileMenuBtn, javafx.geometry.Side.BOTTOM, 0, 0));
+
+                fileRow.getChildren().addAll(fileIcon, fileNameLabel, sizeLabel, fileMenuBtn);
+
+                fileRow.setOnContextMenuRequested(e -> fileMenu.show(fileRow, e.getScreenX(), e.getScreenY()));
+
+                fileRow.setOnMouseClicked(e -> {
+                    if (e.getTarget() != fileMenuBtn && !fileMenuBtn.isHover()) {
+                        handleOpenFile(file);
+                    }
+                });
+
+                childrenBox.getChildren().add(fileRow);
+            }
+
+            topicSection.getChildren().addAll(topicHeader, childrenBox);
+            topicsListContainer.getChildren().add(topicSection);
+        }
+
+        // Maintain or initialize page selection
+        if (currentPage != null) {
+            renderPageCanvas(currentPage);
+        } else if (firstPageToSelect != null) {
+            selectPage(firstPageTopic, firstPageToSelect);
+        } else {
+            showEmptyPlaygroundState();
+        }
+    }
+
+    /**
+     * Prompts the user to enter a topic title and creates it in the current notebook.
+     */
+    @FXML
+    public void promptAddTopic() {
+        if (currentNotebook == null) return;
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("Add Topic");
+        dialog.setHeaderText("Enter topic name (e.g. Chapter 1: Introduction, Trees, Networking):");
+        dialog.setContentText("Topic Title:");
+        Optional<String> res = dialog.showAndWait();
+        res.ifPresent(title -> {
+            String clean = title.trim();
+            if (!clean.isEmpty()) {
+                DatabaseHelper.createTopic(currentNotebook.getId(), clean);
+                loadTopicsExplorer();
+            }
+        });
+    }
+
+    /**
+     * Prompts the user to enter a page title and creates it under the specified topic.
+     */
+    public void promptAddPage(Topic topic) {
+        if (topic == null) return;
+        TextInputDialog dialog = new TextInputDialog("Untitled Page");
+        dialog.setTitle("Add Page");
+        dialog.setHeaderText("Enter page title for \"" + topic.getTitle() + "\":");
+        dialog.setContentText("Page Title:");
+        Optional<String> res = dialog.showAndWait();
+        res.ifPresent(title -> {
+            String clean = title.trim();
+            if (!clean.isEmpty()) {
+                int pageId = DatabaseHelper.createPage(topic.getId(), clean);
+                Page newPage = DatabaseHelper.getPageById(pageId);
+                loadTopicsExplorer();
+                if (newPage != null) {
+                    selectPage(topic, newPage);
+                }
+            }
+        });
+    }
+
+    private void promptRenameTopic(Topic topic) {
+        TextInputDialog dialog = new TextInputDialog(topic.getTitle());
+        dialog.setTitle("Rename Topic");
+        dialog.setHeaderText("Enter new name for topic:");
+        dialog.setContentText("Topic Name:");
+        Optional<String> res = dialog.showAndWait();
+        res.ifPresent(newTitle -> {
+            String clean = newTitle.trim();
+            if (!clean.isEmpty()) {
+                DatabaseHelper.renameTopic(topic.getId(), clean);
+                loadTopicsExplorer();
+            }
+        });
+    }
+
+    private void deleteTopic(Topic topic) {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Delete Topic");
+        confirm.setHeaderText("Delete topic \"" + topic.getTitle() + "\"?");
+        confirm.setContentText("All pages and file attachments inside this topic will be permanently deleted.");
+        Optional<ButtonType> res = confirm.showAndWait();
+        if (res.isPresent() && res.get() == ButtonType.OK) {
+            DatabaseHelper.deleteTopic(topic.getId());
+            if (currentTopic != null && currentTopic.getId() == topic.getId()) {
+                currentPage = null;
+                currentTopic = null;
+            }
+            loadTopicsExplorer();
+        }
+    }
+
+    private void promptRenamePage(Topic topic, Page page) {
+        TextInputDialog dialog = new TextInputDialog(page.getTitle());
+        dialog.setTitle("Rename Page");
+        dialog.setHeaderText("Enter new name for page:");
+        dialog.setContentText("Page Title:");
+        Optional<String> res = dialog.showAndWait();
+        res.ifPresent(newTitle -> {
+            String clean = newTitle.trim();
+            if (!clean.isEmpty()) {
+                DatabaseHelper.updatePage(page.getId(), clean, page.getContentJson());
+                page.setTitle(clean);
+                loadTopicsExplorer();
+            }
+        });
+    }
+
+    private void deletePage(Topic topic, Page page) {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Delete Page");
+        confirm.setHeaderText("Delete page \"" + page.getTitle() + "\"?");
+        confirm.setContentText("Are you sure you want to delete this page?");
+        Optional<ButtonType> res = confirm.showAndWait();
+        if (res.isPresent() && res.get() == ButtonType.OK) {
+            DatabaseHelper.deletePage(page.getId());
+            if (currentPage != null && currentPage.getId() == page.getId()) {
+                currentPage = null;
+            }
+            loadTopicsExplorer();
+        }
+    }
+
+    /**
+     * Selects an active page and renders its canvas.
+     */
+    public void selectPage(Topic topic, Page page) {
+        this.currentTopic = topic;
+        this.currentPage = page;
+
+        if (notebookBreadcrumbLabel != null && currentNotebook != null) {
+            notebookBreadcrumbLabel.setText("📘 " + currentNotebook.getTitle()
+                    + "  ›  📂 " + topic.getTitle()
+                    + "  ›  📄 " + page.getTitle());
+        }
+
+        renderPageCanvas(page);
+    }
+
+    /**
+     * Renders the page playground canvas.
+     */
+    private void renderPageCanvas(Page page) {
+        if (pagePlaygroundContainer == null) return;
+        pagePlaygroundContainer.getChildren().clear();
+
+        // 1. Page Header: Title + Timestamp + Status
+        HBox topRow = new HBox(10);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+
+        TextField pageTitleField = new TextField(page.getTitle());
+        pageTitleField.getStyleClass().add("page-title-field");
+        pageTitleField.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #1e293b; -fx-background-color: transparent; -fx-border-color: transparent; -fx-border-width: 0; -fx-focus-color: transparent; -fx-faint-focus-color: transparent; -fx-padding: 0;");
+        HBox.setHgrow(pageTitleField, Priority.ALWAYS);
+        pageTitleField.focusedProperty().addListener((obs, oldVal, newVal) -> {
+            if (!newVal) {
+                String updatedTitle = pageTitleField.getText().trim();
+                if (!updatedTitle.isEmpty() && !updatedTitle.equals(page.getTitle())) {
+                    page.setTitle(updatedTitle);
+                    DatabaseHelper.updatePage(page.getId(), updatedTitle, page.getContentJson());
+                    if (workspaceStatusLabel != null) workspaceStatusLabel.setText("Title saved ✓");
+                    if (currentNotebook != null && currentTopic != null) {
+                        notebookBreadcrumbLabel.setText("📘 " + currentNotebook.getTitle()
+                                + "  ›  📂 " + currentTopic.getTitle()
+                                + "  ›  📄 " + updatedTitle);
+                    }
+                    loadTopicsExplorer();
+                }
+            }
+        });
+
+        Label saveBadge = new Label("Saved ✓");
+        saveBadge.setStyle("-fx-font-size: 11px; -fx-text-fill: #10b981; -fx-background-color: #ecfdf5; -fx-padding: 2px 8px; -fx-background-radius: 10px;");
+
+        topRow.getChildren().addAll(pageTitleField, saveBadge);
+
+        Label updatedLabel = new Label("Last edited: " + (page.getUpdatedAt() != null ? page.getUpdatedAt() : "Recently"));
+        updatedLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #94a3b8;");
+
+        VBox pageHeader = new VBox(4);
+        pageHeader.setPadding(new Insets(0, 0, 10, 0));
+        pageHeader.setStyle("-fx-border-color: #e2e8f0; -fx-border-width: 0 0 1px 0;");
+        pageHeader.getChildren().addAll(topRow, updatedLabel);
+
+        // 2. Deserialize blocks
+        currentPageBlocks = PageBlock.deserializeList(page.getContentJson());
+        if (currentPageBlocks.isEmpty()) {
+            currentPageBlocks.add(new PageBlock(PageBlock.TYPE_TEXT, "", ""));
+        }
+
+        // 3. Scrollable Blocks Container
+        blocksContainer = new VBox(14);
+        blocksContainer.setPadding(new Insets(10, 4, 10, 0));
+
+        ScrollPane scrollPane = new ScrollPane(blocksContainer);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(false);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent;");
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+
+        refreshBlocksView();
+
+        // 4. Bottom Block Insertion Toolbar
+        HBox bottomToolbar = new HBox(10);
+        bottomToolbar.setAlignment(Pos.CENTER_LEFT);
+        bottomToolbar.setPadding(new Insets(10, 0, 0, 0));
+        bottomToolbar.setStyle("-fx-border-color: #e2e8f0; -fx-border-width: 1px 0 0 0;");
+
+        Button addNoteBtn = new Button("📝 + Add Note");
+        addNoteBtn.getStyleClass().add("btn-playground-add");
+        addNoteBtn.setOnAction(e -> {
+            currentPageBlocks.add(new PageBlock(PageBlock.TYPE_TEXT, "", ""));
+            saveCurrentPageBlocks();
+            refreshBlocksView();
+        });
+
+        Button addCodeBtn = new Button("💻 + Add Code Snippet");
+        addCodeBtn.getStyleClass().add("btn-playground-add");
+        addCodeBtn.setOnAction(e -> {
+            currentPageBlocks.add(new PageBlock(PageBlock.TYPE_CODE, "", "Java"));
+            saveCurrentPageBlocks();
+            refreshBlocksView();
+        });
+
+        Button addImageBtn = new Button("🖼 + Insert Image");
+        addImageBtn.getStyleClass().add("btn-playground-add");
+        addImageBtn.setOnAction(e -> promptUploadImage());
+
+        Button pasteScreenshotBtn = new Button("📷 Paste Screenshot (Ctrl + V)");
+        pasteScreenshotBtn.getStyleClass().add("btn-playground-add");
+        pasteScreenshotBtn.setStyle("-fx-border-color: #6366f1; -fx-text-fill: #4338ca; -fx-background-color: #eef2ff;");
+        pasteScreenshotBtn.setOnAction(e -> handlePasteClipboardImage());
+
+        bottomToolbar.getChildren().addAll(addNoteBtn, addCodeBtn, addImageBtn, pasteScreenshotBtn);
+
+        pagePlaygroundContainer.getChildren().addAll(pageHeader, scrollPane, bottomToolbar);
+    }
+
+    private void refreshBlocksView() {
+        if (blocksContainer == null) return;
+        blocksContainer.getChildren().clear();
+
+        for (int i = 0; i < currentPageBlocks.size(); i++) {
+            final int index = i;
+            PageBlock block = currentPageBlocks.get(i);
+            Node blockNode = createBlockNode(block, index);
+            blocksContainer.getChildren().add(blockNode);
+        }
+    }
+
+    private Node createBlockNode(PageBlock block, int index) {
+        String type = block.getType();
+        if (PageBlock.TYPE_CODE.equalsIgnoreCase(type)) {
+            return createCodeBlockNode(block, index);
+        } else if (PageBlock.TYPE_IMAGE.equalsIgnoreCase(type)) {
+            return createImageBlockNode(block, index);
+        } else {
+            return createTextBlockNode(block, index);
+        }
+    }
+
+    private Node createTextBlockNode(PageBlock block, int index) {
+        VBox card = new VBox(6);
+        card.getStyleClass().add("block-card");
+
+        HBox header = new HBox(8);
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.getStyleClass().add("block-header");
+
+        Label typeLbl = new Label("📝 Note");
+        typeLbl.setStyle("-fx-font-weight: bold; -fx-font-size: 11px; -fx-text-fill: #64748b;");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button delBtn = new Button("🗑");
+        delBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #94a3b8; -fx-font-size: 12px; -fx-cursor: hand;");
+        delBtn.setOnAction(e -> {
+            currentPageBlocks.remove(index);
+            saveCurrentPageBlocks();
+            refreshBlocksView();
+        });
+
+        header.getChildren().addAll(typeLbl, spacer, delBtn);
+
+        TextArea textArea = new TextArea(block.getContent());
+        textArea.setWrapText(true);
+        int lineCount = block.getContent().isEmpty() ? 4 : Math.max(4, block.getContent().split("\n", -1).length + 1);
+        textArea.setPrefRowCount(Math.min(lineCount, 16));
+        textArea.setStyle("-fx-font-size: 13px; -fx-text-fill: #1e293b;");
+
+        textArea.textProperty().addListener((obs, oldText, newText) -> {
+            block.setContent(newText);
+            int lines = Math.max(4, newText.split("\n", -1).length + 1);
+            textArea.setPrefRowCount(Math.min(lines, 16));
+            saveCurrentPageBlocksQuietly();
+        });
+
+        textArea.focusedProperty().addListener((obs, wasFocused, isFocused) -> {
+            if (!isFocused) {
+                saveCurrentPageBlocks();
+            }
+        });
+
+        card.getChildren().addAll(header, textArea);
+        return card;
+    }
+
+    private Node createCodeBlockNode(PageBlock block, int index) {
+        VBox card = new VBox(6);
+        card.getStyleClass().add("block-code-container");
+
+        HBox header = new HBox(8);
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.setStyle("-fx-padding: 0 0 6px 0; -fx-border-color: #334155; -fx-border-width: 0 0 1px 0;");
+
+        Label typeLbl = new Label("💻 Code Snippet");
+        typeLbl.setStyle("-fx-font-weight: bold; -fx-font-size: 11px; -fx-text-fill: #94a3b8;");
+
+        ComboBox<String> langCombo = new ComboBox<>();
+        langCombo.getItems().addAll("Java", "Python", "C", "C++", "JavaScript", "HTML/CSS", "SQL", "Bash", "Text");
+        langCombo.setValue((block.getExtra() != null && !block.getExtra().isEmpty()) ? block.getExtra() : "Java");
+        langCombo.setStyle("-fx-background-color: #1e293b; -fx-mark-color: #94a3b8; -fx-font-size: 11px;");
+        langCombo.setOnAction(e -> {
+            block.setExtra(langCombo.getValue());
+            saveCurrentPageBlocks();
+        });
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button copyBtn = new Button("📋 Copy Code");
+        copyBtn.getStyleClass().add("btn-copy-code");
+        copyBtn.setOnAction(e -> {
+            Clipboard clipboard = Clipboard.getSystemClipboard();
+            ClipboardContent cc = new ClipboardContent();
+            cc.putString(block.getContent());
+            clipboard.setContent(cc);
+
+            copyBtn.setText("✓ Copied!");
+            copyBtn.setStyle("-fx-background-color: #059669; -fx-text-fill: #ffffff; -fx-font-size: 11px; -fx-font-weight: bold; -fx-background-radius: 6px; -fx-padding: 4px 10px;");
+            PauseTransition pause = new PauseTransition(Duration.seconds(1.5));
+            pause.setOnFinished(ev -> {
+                copyBtn.setText("📋 Copy Code");
+                copyBtn.setStyle("");
+                copyBtn.getStyleClass().add("btn-copy-code");
+            });
+            pause.play();
+        });
+
+        Button delBtn = new Button("🗑");
+        delBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #64748b; -fx-font-size: 12px; -fx-cursor: hand;");
+        delBtn.setOnAction(e -> {
+            currentPageBlocks.remove(index);
+            saveCurrentPageBlocks();
+            refreshBlocksView();
+        });
+
+        header.getChildren().addAll(typeLbl, langCombo, spacer, copyBtn, delBtn);
+
+        TextArea codeArea = new TextArea(block.getContent());
+        codeArea.getStyleClass().add("code-text-area");
+        codeArea.setWrapText(false);
+        int lineCount = block.getContent().isEmpty() ? 5 : Math.max(5, block.getContent().split("\n", -1).length + 2);
+        codeArea.setPrefRowCount(Math.min(lineCount, 20));
+
+        codeArea.textProperty().addListener((obs, oldText, newText) -> {
+            block.setContent(newText);
+            int lines = Math.max(5, newText.split("\n", -1).length + 2);
+            codeArea.setPrefRowCount(Math.min(lines, 20));
+            saveCurrentPageBlocksQuietly();
+        });
+
+        codeArea.focusedProperty().addListener((obs, wasFocused, isFocused) -> {
+            if (!isFocused) {
+                saveCurrentPageBlocks();
+            }
+        });
+
+        card.getChildren().addAll(header, codeArea);
+        return card;
+    }
+
+    private Node createImageBlockNode(PageBlock block, int index) {
+        VBox card = new VBox(6);
+        card.getStyleClass().add("block-card");
+
+        HBox header = new HBox(8);
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.getStyleClass().add("block-header");
+
+        Label typeLbl = new Label("🖼 Image / Screenshot");
+        typeLbl.setStyle("-fx-font-weight: bold; -fx-font-size: 11px; -fx-text-fill: #64748b;");
+
+        TextField captionField = new TextField(block.getExtra());
+        captionField.setPromptText("Add caption or note...");
+        captionField.setStyle("-fx-font-size: 11px; -fx-background-color: #f1f5f9; -fx-background-radius: 4px; -fx-padding: 3px 8px;");
+        HBox.setHgrow(captionField, Priority.ALWAYS);
+        captionField.focusedProperty().addListener((obs, oldVal, newVal) -> {
+            if (!newVal) {
+                block.setExtra(captionField.getText().trim());
+                saveCurrentPageBlocksQuietly();
+            }
+        });
+
+        File imgFile = new File(block.getContent());
+
+        Button openFullBtn = new Button("🔍 Open");
+        openFullBtn.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-size: 11px; -fx-padding: 3px 8px; -fx-cursor: hand; -fx-background-radius: 4px;");
+        openFullBtn.setOnAction(e -> {
+            if (imgFile.exists()) {
+                try {
+                    if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                        Desktop.getDesktop().open(imgFile);
+                    }
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
+
+        Button delBtn = new Button("🗑");
+        delBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #94a3b8; -fx-font-size: 12px; -fx-cursor: hand;");
+        delBtn.setOnAction(e -> {
+            currentPageBlocks.remove(index);
+            saveCurrentPageBlocks();
+            refreshBlocksView();
+        });
+
+        header.getChildren().addAll(typeLbl, captionField, openFullBtn, delBtn);
+
+        if (imgFile.exists()) {
+            try {
+                Image img = new Image(imgFile.toURI().toString());
+                ImageView imgView = new ImageView(img);
+                imgView.setPreserveRatio(true);
+                imgView.setSmooth(true);
+                imgView.setFitWidth(650);
+                imgView.setStyle("-fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 8, 0, 0, 2);");
+                imgView.setOnMouseClicked(e -> {
+                    if (e.getClickCount() == 2) {
+                        try {
+                            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                                Desktop.getDesktop().open(imgFile);
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                });
+                card.getChildren().addAll(header, imgView);
+            } catch (Exception ex) {
+                Label errLabel = new Label("Error loading image: " + imgFile.getAbsolutePath());
+                card.getChildren().addAll(header, errLabel);
+            }
+        } else {
+            Label missingLabel = new Label("Image file not found: " + block.getContent());
+            missingLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #ef4444;");
+            card.getChildren().addAll(header, missingLabel);
+        }
+
+        return card;
+    }
+
+    private void saveCurrentPageBlocks() {
+        if (currentPage == null) return;
+        String json = PageBlock.serializeList(currentPageBlocks);
+        currentPage.setContentJson(json);
+        DatabaseHelper.updatePage(currentPage.getId(), currentPage.getTitle(), json);
+        if (workspaceStatusLabel != null) {
+            workspaceStatusLabel.setText("Saved ✓ " + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        }
+    }
+
+    private void saveCurrentPageBlocksQuietly() {
+        if (currentPage == null) return;
+        String json = PageBlock.serializeList(currentPageBlocks);
+        currentPage.setContentJson(json);
+        DatabaseHelper.updatePage(currentPage.getId(), currentPage.getTitle(), json);
+    }
+
+    private void promptUploadImage() {
+        if (currentPage == null || currentNotebook == null) return;
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Insert Image into Page");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Image Files (*.png, *.jpg, *.jpeg, *.gif, *.bmp)", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"),
+                new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
+        );
+        Stage stage = (Stage) notebookWorkspaceView.getScene().getWindow();
+        File selected = fileChooser.showOpenDialog(stage);
+        if (selected == null) return;
+
+        try {
+            File dir = new File("study_buddy_data/images/" + currentNotebook.getId());
+            if (!dir.exists()) dir.mkdirs();
+
+            String storedName = "img_" + System.currentTimeMillis() + "_" + selected.getName();
+            File targetFile = new File(dir, storedName);
+            Files.copy(selected.toPath(), targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+            PageBlock newBlock = new PageBlock(PageBlock.TYPE_IMAGE, targetFile.getAbsolutePath(), selected.getName());
+            currentPageBlocks.add(newBlock);
+            saveCurrentPageBlocks();
+            refreshBlocksView();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            showError("Image Error", "Failed to insert image: " + ex.getMessage());
+        }
+    }
+
+    private void handlePasteClipboardImage() {
+        if (currentPage == null || currentNotebook == null) return;
+        Clipboard clipboard = Clipboard.getSystemClipboard();
+        if (!clipboard.hasImage()) {
+            showAlert("No Screenshot Found", "No image found in clipboard.\n\nTip: Press Win + Shift + S to take a screenshot, then click Paste or press Ctrl + V.");
+            return;
+        }
+
+        try {
+            Image fxImage = clipboard.getImage();
+            File targetFile = saveClipboardImageToFile(fxImage);
+            if (targetFile != null) {
+                PageBlock newBlock = new PageBlock(PageBlock.TYPE_IMAGE, targetFile.getAbsolutePath(), "Screenshot " + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")));
+                currentPageBlocks.add(newBlock);
+                saveCurrentPageBlocks();
+                refreshBlocksView();
+                if (workspaceStatusLabel != null) {
+                    workspaceStatusLabel.setText("Screenshot pasted ✓");
+                }
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            showError("Paste Error", "Failed to paste image from clipboard: " + ex.getMessage());
+        }
+    }
+
+    private File saveClipboardImageToFile(Image fxImage) throws IOException {
+        if (fxImage == null || currentNotebook == null) return null;
+        File dir = new File("study_buddy_data/images/" + currentNotebook.getId());
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+        String fileName = "screenshot_" + System.currentTimeMillis() + ".png";
+        File targetFile = new File(dir, fileName);
+
+        int width = (int) fxImage.getWidth();
+        int height = (int) fxImage.getHeight();
+        PixelReader reader = fxImage.getPixelReader();
+        if (reader == null) {
+            throw new IOException("Cannot read image pixels from clipboard image");
+        }
+
+        BufferedImage bImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                bImage.setRGB(x, y, reader.getArgb(x, y));
+            }
+        }
+        ImageIO.write(bImage, "png", targetFile);
+        return targetFile;
+    }
+
+    private void showEmptyPlaygroundState() {
+        if (pagePlaygroundContainer == null) return;
+        pagePlaygroundContainer.getChildren().clear();
+
+        VBox emptyPrompt = new VBox(12);
+        emptyPrompt.setAlignment(Pos.CENTER);
+        emptyPrompt.setPadding(new Insets(60, 20, 60, 20));
+        emptyPrompt.setStyle("-fx-background-color: #f8fafc; -fx-background-radius: 8px; -fx-border-color: #e2e8f0; -fx-border-radius: 8px; -fx-border-style: dashed;");
+        VBox.setVgrow(emptyPrompt, Priority.ALWAYS);
+
+        Label icon = new Label("📄");
+        icon.setStyle("-fx-font-size: 40px;");
+
+        Label title = new Label("No Page Selected");
+        title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #1e293b;");
+
+        Label sub = new Label("Select a page from the Topics Explorer on the left, or add a new page to begin writing.");
+        sub.setStyle("-fx-font-size: 12px; -fx-text-fill: #64748b;");
+
+        emptyPrompt.getChildren().addAll(icon, title, sub);
+        pagePlaygroundContainer.getChildren().add(emptyPrompt);
+    }
+
+    /**
+     * Attaches one or more files to a topic.
+     */
+    private void attachFileToTopic(Topic topic) {
+        if (topic == null || currentNotebook == null) return;
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Attach Files to " + topic.getTitle());
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("All Supported Documents", "*.pdf", "*.pptx", "*.ppt", "*.docx", "*.doc", "*.xlsx", "*.xls", "*.txt", "*.png", "*.jpg", "*.jpeg"),
+                new FileChooser.ExtensionFilter("PDF Documents (*.pdf)", "*.pdf"),
+                new FileChooser.ExtensionFilter("PowerPoint Presentations (*.pptx, *.ppt)", "*.pptx", "*.ppt"),
+                new FileChooser.ExtensionFilter("Word Documents (*.docx, *.doc)", "*.docx", "*.doc"),
+                new FileChooser.ExtensionFilter("Images (*.png, *.jpg, *.jpeg)", "*.png", "*.jpg", "*.jpeg"),
+                new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
+        );
+
+        Stage stage = (Stage) notebookWorkspaceView.getScene().getWindow();
+        List<File> selectedFiles = fileChooser.showOpenMultipleDialog(stage);
+        if (selectedFiles == null || selectedFiles.isEmpty()) return;
+
+        File destDir = new File("study_buddy_data/attachments/" + currentNotebook.getId());
+        if (!destDir.exists()) destDir.mkdirs();
+
+        int attachedCount = 0;
+        for (File srcFile : selectedFiles) {
+            try {
+                String originalName = srcFile.getName();
+                String ext = "";
+                int dotIdx = originalName.lastIndexOf('.');
+                if (dotIdx > 0) ext = originalName.substring(dotIdx + 1).toLowerCase();
+
+                String storedName = System.currentTimeMillis() + "_" + originalName;
+                File targetFile = new File(destDir, storedName);
+                Files.copy(srcFile.toPath(), targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+                DatabaseHelper.addTopicFile(topic.getId(), originalName, targetFile.getAbsolutePath(), ext, srcFile.length());
+                attachedCount++;
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                showError("File Error", "Failed to attach file " + srcFile.getName() + ": " + ex.getMessage());
+            }
+        }
+
+        if (workspaceStatusLabel != null) {
+            workspaceStatusLabel.setText("Attached " + attachedCount + " file(s) ✓");
+        }
+        loadTopicsExplorer();
+    }
+
+    /**
+     * Opens an attached file using the OS default application.
+     */
+    private void handleOpenFile(TopicFile topicFile) {
+        if (topicFile == null || topicFile.getStoredFilePath() == null) return;
+        try {
+            File file = new File(topicFile.getStoredFilePath());
+            if (file.exists()) {
+                if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                    Desktop.getDesktop().open(file);
+                } else {
+                    new ProcessBuilder("rundll32.exe", "shell32.dll,OpenAs_RunDLL", file.getAbsolutePath()).start();
+                }
+            } else {
+                showAlert("File Not Found", "The attachment file could not be found on disk:\n" + file.getAbsolutePath());
+            }
+        } catch (Exception e) {
+            showError("Unable to Open File", "Error launching native application: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Opens an attached file with the Windows "Open With" dialog.
+     */
+    private void handleOpenWith(TopicFile topicFile) {
+        if (topicFile == null || topicFile.getStoredFilePath() == null) return;
+        try {
+            File file = new File(topicFile.getStoredFilePath());
+            if (file.exists()) {
+                new ProcessBuilder("rundll32.exe", "shell32.dll,OpenAs_RunDLL", file.getAbsolutePath()).start();
+            } else {
+                showAlert("File Not Found", "The attachment file could not be found on disk:\n" + file.getAbsolutePath());
+            }
+        } catch (Exception e) {
+            handleOpenFile(topicFile);
+        }
+    }
+
+    /**
+     * Reveals the file in Windows File Explorer.
+     */
+    private void handleShowInExplorer(TopicFile topicFile) {
+        if (topicFile == null || topicFile.getStoredFilePath() == null) return;
+        try {
+            File file = new File(topicFile.getStoredFilePath());
+            if (file.exists()) {
+                new ProcessBuilder("explorer.exe", "/select,", file.getAbsolutePath()).start();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
      * Initializes the dashboard with the authenticated user and loads their routine.
      */
     public void initUser(User user) {
@@ -141,6 +1341,7 @@ public class HelloController {
             this.timeSlots = DatabaseHelper.getUserTimeSlots(user.getId());
 
             buildRoutineGrid();
+            loadNotebooks();
             handleOpenMainMenu();
         }
     }

@@ -4,6 +4,7 @@
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.FlowPane?>
 <?import javafx.scene.layout.GridPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
@@ -19,7 +20,7 @@
     </padding>
 
     <!-- Top Navigation & Toolbar -->
-    <HBox alignment="CENTER_LEFT" spacing="12.0"
+    <HBox fx:id="appTopBar" alignment="CENTER_LEFT" spacing="12.0"
           style="-fx-background-color: #ffffff; -fx-padding: 12px 18px; -fx-background-radius: 10px; -fx-border-color: #e2e8f0; -fx-border-radius: 10px;">
 
         <!-- Left Sidebar Toggle Button -->
@@ -60,10 +61,26 @@
 
         <!-- Center Workspace: StackPane supporting Main Menu (Blank) & Routine Views -->
         <StackPane fx:id="centerWorkspace" HBox.hgrow="ALWAYS">
-            <!-- View 1: Main Menu (Blank placeholder container for future features) -->
-            <VBox fx:id="mainMenuView" alignment="CENTER" spacing="12.0"
-                  style="-fx-background-color: #ffffff; -fx-padding: 24px; -fx-background-radius: 10px; -fx-border-color: #cbd5e1; -fx-border-radius: 10px;">
-                <!-- Clean canvas ready for future widgets -->
+            <!-- View 1: Main Menu (Notebooks Dashboard) -->
+            <VBox fx:id="mainMenuView" alignment="TOP_LEFT" spacing="20.0"
+                  style="-fx-background-color: #ffffff; -fx-padding: 28px; -fx-background-radius: 10px; -fx-border-color: #cbd5e1; -fx-border-radius: 10px;">
+                
+                <!-- Notebooks Header & Actions Bar -->
+                <HBox alignment="CENTER_LEFT" spacing="16.0">
+                    <Label text="Recent notebooks" style="-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" />
+                    <Button fx:id="myNotebooksBtn" onAction="#handleMyNotebooks" styleClass="btn-secondary-action" text="📚 My Notebooks" />
+                    <Button fx:id="newNotebookBtn" onAction="#handleNewNotebook" styleClass="btn-primary" text="+ New Notebook" />
+                </HBox>
+
+                <!-- Notebooks Scrollable Content Area -->
+                <ScrollPane fitToWidth="true" fitToHeight="true"
+                            style="-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent;" VBox.vgrow="ALWAYS">
+                    <VBox fx:id="notebooksContentArea" spacing="16.0" VBox.vgrow="ALWAYS">
+                        <FlowPane fx:id="notebooksGrid" hgap="20.0" vgap="20.0">
+                            <!-- Populated dynamically in HelloController -->
+                        </FlowPane>
+                    </VBox>
+                </ScrollPane>
             </VBox>
 
             <!-- View 2: Class Routine View (Exact previous routine layout) -->
@@ -80,6 +97,47 @@
                     </GridPane>
                 </VBox>
             </ScrollPane>
+
+            <!-- View 3: Notebook Workspace View (Topics & Pages Explorer + Playground) -->
+            <VBox fx:id="notebookWorkspaceView" spacing="12.0" visible="false" managed="false"
+                  style="-fx-background-color: #ffffff; -fx-padding: 16px; -fx-background-radius: 10px; -fx-border-color: #cbd5e1; -fx-border-radius: 10px;">
+                
+                <!-- Workspace Top Bar: Back Button, Topics Toggle, Breadcrumb, Status -->
+                <HBox alignment="CENTER_LEFT" spacing="12.0" style="-fx-padding: 0 0 10px 0; -fx-border-color: #e2e8f0; -fx-border-width: 0 0 1px 0;">
+                    <Button onAction="#handleBackToDashboard" styleClass="btn-secondary-action" text="◀ Back to Notebooks" />
+                    <Button fx:id="toggleTopicsBtn" onAction="#handleToggleTopicsSidebar" styleClass="btn-secondary-action" text="📂 Topics" />
+                    <Label fx:id="notebookBreadcrumbLabel" style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" text="Notebook Title" />
+                    <Region HBox.hgrow="ALWAYS" />
+                    <Label fx:id="workspaceStatusLabel" style="-fx-font-size: 11px; -fx-text-fill: #64748b;" text="" />
+                </HBox>
+
+                <!-- Workspace Split/Dual Area: Topics Explorer (Left) & Page Playground (Right) -->
+                <HBox spacing="16.0" VBox.vgrow="ALWAYS">
+                    <!-- Left Column: Topics Explorer Pane (Collapsible Sidebar) -->
+                    <VBox fx:id="topicsSidebar" prefWidth="280.0" minWidth="0.0" maxWidth="320.0" spacing="10.0"
+                          style="-fx-background-color: #f8fafc; -fx-padding: 14px; -fx-background-radius: 8px; -fx-border-color: #e2e8f0; -fx-border-radius: 8px;">
+                        
+                        <HBox alignment="CENTER_LEFT" spacing="8.0">
+                            <Label text="TOPICS" style="-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #475569;" />
+                            <Region HBox.hgrow="ALWAYS" />
+                            <Button onAction="#promptAddTopic" style="-fx-background-color: #e0e7ff; -fx-text-fill: #4338ca; -fx-font-weight: bold; -fx-font-size: 11px; -fx-cursor: hand; -fx-background-radius: 4px; -fx-padding: 4px 10px;" text="+ Add Topic" />
+                            <Button onAction="#handleCloseTopicsSidebar" style="-fx-background-color: transparent; -fx-text-fill: #94a3b8; -fx-font-size: 13px; -fx-cursor: hand; -fx-padding: 2px 6px;" text="✕" />
+                        </HBox>
+
+                        <ScrollPane fitToWidth="true" fitToHeight="true"
+                                    style="-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent;" VBox.vgrow="ALWAYS">
+                            <VBox fx:id="topicsListContainer" spacing="10.0">
+                                <!-- Dynamically populated topics list -->
+                            </VBox>
+                        </ScrollPane>
+                    </VBox>
+
+                    <!-- Right Column: Page Playground Area -->
+                    <VBox fx:id="pagePlaygroundContainer" spacing="14.0" HBox.hgrow="ALWAYS" VBox.vgrow="ALWAYS">
+                        <!-- Dynamically populated page canvas / empty prompt -->
+                    </VBox>
+                </HBox>
+            </VBox>
         </StackPane>
 
         <!-- Right Sidebar (Collapsible with smooth animation, closed by default) -->

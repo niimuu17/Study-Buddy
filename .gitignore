@@ -35,8 +35,9 @@ build/
 ### VS Code ###
 .vscode/
 
-### SQLite ###
+### SQLite & User Data ###
 *.db
+study_buddy_data/
 
 ### Mac OS ###
 .DS_Store
