@@ -241,6 +241,42 @@ public class DatabaseHelper {
     }
 
     /**
+     * Retrieves the dev user 'ikki' (registering if needed) to bypass login during development.
+     */
+    public static User getFirstOrCreateDevUser() {
+        User user = authenticateUser("ikki", "Ikkiis@kuet23");
+        if (user != null) {
+            return user;
+        }
+
+        user = authenticateUser("ikki@gmail.com", "Ikkiis@kuet23");
+        if (user != null) {
+            return user;
+        }
+
+        // If not registered, create the account
+        registerUser("ikki@gmail.com", "ikki", "Ikkiis@kuet23");
+        user = authenticateUser("ikki", "Ikkiis@kuet23");
+        if (user != null) {
+            return user;
+        }
+
+        // Fallback to existing account named 'ikki'
+        String sql = "SELECT id, username, email FROM users WHERE LOWER(username) = 'ikki' LIMIT 1";
+        try (Connection conn = getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) {
+                return new User(rs.getInt("id"), rs.getString("email"), rs.getString("username"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    /**
      * Saves or updates a routine slot along with its special activities.
      */
     public static boolean saveRoutineSlot(RoutineSlot slot) {

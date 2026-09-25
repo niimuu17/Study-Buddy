@@ -38,9 +38,6 @@
 
         <!-- Right Sidebar Toggle Button -->
         <Button fx:id="rightToggleBtn" onAction="#handleToggleRight" styleClass="btn-toggle" text="Sidebar ▤" />
-
-        <!-- Logout Button -->
-        <Button fx:id="logoutButton" onAction="#handleLogout" styleClass="btn-logout" text="Log Out" />
     </HBox>
 
     <!-- Main Workspace with Collapsible Left and Right Sidebars -->
@@ -51,11 +48,16 @@
               visible="false" managed="false"
               style="-fx-background-color: #ffffff; -fx-background-radius: 10px; -fx-border-color: #e2e8f0; -fx-border-radius: 10px; -fx-padding: 16px;">
             <HBox alignment="CENTER_LEFT" spacing="8.0">
-                <Label style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" text="Left Sidebar" />
+                <Label style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" text="Navigation" />
             </HBox>
             <VBox fx:id="leftSidebarContent" spacing="8.0" VBox.vgrow="ALWAYS">
                 <Button fx:id="navHomeBtn" alignment="BASELINE_LEFT" maxWidth="Infinity" onAction="#handleOpenMainMenu" styleClass="nav-item" text="🏠  Main Menu" />
                 <Button fx:id="navRoutineBtn" alignment="BASELINE_LEFT" maxWidth="Infinity" onAction="#handleOpenRoutine" styleClass="nav-item" text="📅  Class Routine" />
+            </VBox>
+
+            <!-- Bottom Section: Logout Button -->
+            <VBox spacing="8.0" style="-fx-padding: 10px 0 0 0; -fx-border-color: #f1f5f9; -fx-border-width: 1px 0 0 0;">
+                <Button fx:id="logoutButton" alignment="CENTER" maxWidth="Infinity" onAction="#handleLogout" styleClass="btn-logout" text="🚪 Log Out" />
             </VBox>
         </VBox>
 
