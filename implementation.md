@@ -75,7 +75,7 @@ You asked:
 
 | Teacher Requirement | How the AI Quiz System Delivers It |
 |---|---|
-| **Requirement 8: Networking & JSON Parsing** | Uses Java 21's native `java.net.http.HttpClient` to make asynchronous HTTPS POST requests to Google Gemini REST endpoint, sending JSON payloads and deserializing JSON responses using `Gson`. |
+| **Requirement 8: Networking & JSON Parsing** | Uses Java 21's native `java.net.http.HttpClient` to make asynchronous HTTPS POST requests to Google Gemini REST endpoint, sending JSON payloads and deserializing JSON responses using `Jackson` (`ObjectMapper`). |
 | **Requirement 3: JavaFX UI Design (BorderPane)** | The entire Quiz view is built using a **`BorderPane`**: <br>• `Top`: Quiz title, countdown/progress indicator, settings & back buttons. <br>• `Center`: Scrollable question viewport (MCQ 4-card grid + Short Answer text areas). <br>• `Bottom`: Action bar with "Submit Quiz" button, answered counter, and score display. |
 | **Requirement 5: Concurrency** | All network I/O executes asynchronously on background worker threads (`ExecutorService` / `CompletableFuture`). The JavaFX Application Thread is never blocked; loading spinners animate smoothly, and UI updates are safely dispatched via `Platform.runLater()`. |
 | **Requirement 4: Responsiveness** | Question cards and MCQ choices adapt dynamically to window resizing using percentage widths and wrapping. |
@@ -209,7 +209,7 @@ public class QuizQuestion {
 
 ### Phase 1: Dependencies & Configuration
 1. Update `pom.xml`:
-   - Add `com.google.code.gson:gson` (`2.11.0`) for clean JSON parsing and formatting.
+   - Add `com.fasterxml.jackson.core:jackson-databind` (`2.17.2`) for clean JSON parsing, object mapping, and payload formatting.
 2. Create `ApiKeyManager.java` or `SettingsService.java`:
    - Manages Gemini API Key securely (checks environment variable `GEMINI_API_KEY` or persists user-entered key in `study_buddy_data/settings.properties`).
    - Includes a sleek API Key input dialog with a direct link to Google AI Studio (free key generation).
