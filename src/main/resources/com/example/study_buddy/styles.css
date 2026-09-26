@@ -249,6 +249,22 @@
     -fx-background-color: #f1f5f9;
 }
 
+.topic-header-active {
+    -fx-background-color: #f1f5f9;
+    -fx-border-color: #cbd5e1;
+    -fx-border-radius: 6px;
+    -fx-border-width: 1px;
+}
+
+.topic-count-badge {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #94a3b8;
+    -fx-background-color: #f1f5f9;
+    -fx-background-radius: 10px;
+    -fx-padding: 2px 7px;
+}
+
 .page-title-field,
 .page-title-field:focused {
     -fx-background-color: transparent;

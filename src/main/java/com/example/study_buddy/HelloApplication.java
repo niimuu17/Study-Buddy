@@ -40,6 +40,15 @@ public class HelloApplication extends Application {
         // Maximize after show() to ensure native window manager respects maximized state
         stage.setMaximized(true);
         Platform.runLater(() -> stage.setMaximized(true));
+
+        // Start background Producer-Consumer thread pool
+        NotebookJobQueue.getInstance().startConsumers(2);
+    }
+
+    @Override
+    public void stop() {
+        // Gracefully shutdown background thread pool on application exit
+        NotebookJobQueue.getInstance().shutdown();
     }
 
     public static void main(String[] args) {

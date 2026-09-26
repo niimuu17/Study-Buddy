@@ -519,6 +519,9 @@ public class HelloController {
 
         setTopicsSidebarOpen(true);
         loadTopicsExplorer();
+
+        // Producer: dispatch background stats indexing job to consumer thread pool
+        NotebookJobQueue.getInstance().submitJob(new NotebookStatsJob(notebook.getId(), notebook.getTitle()));
     }
 
     /**
@@ -602,35 +605,42 @@ public class HelloController {
             return;
         }
 
+        // Ensure currentTopic is resolved properly
+        if (currentTopic == null && !topics.isEmpty()) {
+            currentTopic = topics.get(0);
+        } else if (currentTopic != null) {
+            Topic matched = null;
+            for (Topic t : topics) {
+                if (t.getId() == currentTopic.getId()) {
+                    matched = t;
+                    break;
+                }
+            }
+            currentTopic = (matched != null) ? matched : (!topics.isEmpty() ? topics.get(0) : null);
+        }
+
         Page firstPageToSelect = null;
         Topic firstPageTopic = null;
 
         for (Topic topic : topics) {
             VBox topicSection = new VBox(4);
 
+            boolean isOpened = (currentTopic != null && currentTopic.getId() == topic.getId());
+
             // Topic Header Bar
             HBox topicHeader = new HBox(6);
             topicHeader.setAlignment(Pos.CENTER_LEFT);
             topicHeader.getStyleClass().add("topic-header");
+            if (isOpened) {
+                topicHeader.getStyleClass().add("topic-header-active");
+            }
 
-            Label folderIcon = new Label("📂");
-            folderIcon.setStyle("-fx-font-size: 13px;");
+            Label folderIcon = new Label(isOpened ? "▼ 📂" : "▶ 📁");
+            folderIcon.setStyle("-fx-font-size: " + (isOpened ? "12px;" : "11px;") + " -fx-text-fill: #475569;");
 
             Label topicTitle = new Label(topic.getTitle());
-            topicTitle.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #1e293b;");
+            topicTitle.setStyle("-fx-font-size: 13px; -fx-font-weight: " + (isOpened ? "bold;" : "normal;") + " -fx-text-fill: #1e293b;");
             HBox.setHgrow(topicTitle, Priority.ALWAYS);
-
-            // Quick Add Page button
-            Button addPageBtn = new Button("+ Page");
-            addPageBtn.setTooltip(new Tooltip("Add new page to this topic"));
-            addPageBtn.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-size: 10px; -fx-font-weight: bold; -fx-background-radius: 4px; -fx-padding: 3px 6px; -fx-cursor: hand;");
-            addPageBtn.setOnAction(e -> promptAddPage(topic));
-
-            // Quick Add File button
-            Button addFileBtn = new Button("+ File");
-            addFileBtn.setTooltip(new Tooltip("Attach file (PDF, PPTX, Word, etc.) to this topic"));
-            addFileBtn.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-size: 10px; -fx-font-weight: bold; -fx-background-radius: 4px; -fx-padding: 3px 6px; -fx-cursor: hand;");
-            addFileBtn.setOnAction(e -> attachFileToTopic(topic));
 
             // Options menu (Rename, Attach, Delete)
             Button optionsBtn = new Button("⋮");
@@ -649,120 +659,197 @@ public class HelloController {
             topicMenu.getItems().addAll(renameItem, attachFileItem, new SeparatorMenuItem(), deleteItem);
             optionsBtn.setOnAction(e -> topicMenu.show(optionsBtn, javafx.geometry.Side.BOTTOM, 0, 0));
 
-            topicHeader.getChildren().addAll(folderIcon, topicTitle, addPageBtn, addFileBtn, optionsBtn);
+            if (isOpened) {
+                // Quick Add Page button
+                Button addPageBtn = new Button("+ Page");
+                addPageBtn.setTooltip(new Tooltip("Add new page to this topic"));
+                addPageBtn.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-size: 10px; -fx-font-weight: bold; -fx-background-radius: 4px; -fx-padding: 3px 6px; -fx-cursor: hand;");
+                addPageBtn.setOnAction(e -> promptAddPage(topic));
 
-            // Pages & Files Container (Indented)
-            VBox childrenBox = new VBox(2);
-            childrenBox.setPadding(new Insets(2, 0, 4, 16));
+                // Quick Add File button
+                Button addFileBtn = new Button("+ File");
+                addFileBtn.setTooltip(new Tooltip("Attach file (PDF, PPTX, Word, etc.) to this topic"));
+                addFileBtn.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-size: 10px; -fx-font-weight: bold; -fx-background-radius: 4px; -fx-padding: 3px 6px; -fx-cursor: hand;");
+                addFileBtn.setOnAction(e -> attachFileToTopic(topic));
 
-            // List Pages
-            for (Page page : topic.getPages()) {
-                if (firstPageToSelect == null) {
-                    firstPageToSelect = page;
-                    firstPageTopic = topic;
-                }
+                topicHeader.getChildren().addAll(folderIcon, topicTitle, addPageBtn, addFileBtn, optionsBtn);
+            } else {
+                int totalItems = (topic.getPages() != null ? topic.getPages().size() : 0)
+                               + (topic.getFiles() != null ? topic.getFiles().size() : 0);
+                Label countLabel = new Label(totalItems + (totalItems == 1 ? " item" : " items"));
+                countLabel.getStyleClass().add("topic-count-badge");
 
-                HBox pageRow = new HBox(6);
-                pageRow.setAlignment(Pos.CENTER_LEFT);
-                pageRow.getStyleClass().add("page-item");
-                if (currentPage != null && currentPage.getId() == page.getId()) {
-                    pageRow.getStyleClass().add("page-item-active");
-                }
+                topicHeader.getChildren().addAll(folderIcon, topicTitle, countLabel, optionsBtn);
 
-                Label pageIcon = new Label("📄");
-                pageIcon.setStyle("-fx-font-size: 12px;");
-
-                Label pageTitleLabel = new Label(page.getTitle());
-                pageTitleLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #334155;");
-                HBox.setHgrow(pageTitleLabel, Priority.ALWAYS);
-
-                Button pageMenuBtn = new Button("⋮");
-                pageMenuBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #94a3b8; -fx-font-size: 12px; -fx-padding: 0 2px; -fx-cursor: hand;");
-
-                ContextMenu pageMenu = new ContextMenu();
-                MenuItem renamePageItem = new MenuItem("✏ Rename Page");
-                renamePageItem.setOnAction(e -> promptRenamePage(topic, page));
-
-                MenuItem deletePageItem = new MenuItem("🗑 Delete Page");
-                deletePageItem.setOnAction(e -> deletePage(topic, page));
-
-                pageMenu.getItems().addAll(renamePageItem, new SeparatorMenuItem(), deletePageItem);
-                pageMenuBtn.setOnAction(e -> pageMenu.show(pageMenuBtn, javafx.geometry.Side.BOTTOM, 0, 0));
-
-                pageRow.getChildren().addAll(pageIcon, pageTitleLabel, pageMenuBtn);
-
-                pageRow.setOnMouseClicked(e -> {
-                    if (e.getTarget() != pageMenuBtn && !pageMenuBtn.isHover()) {
-                        selectPage(topic, page);
+                // Clicking anywhere on collapsed topic header opens this topic
+                topicHeader.setOnMouseClicked(e -> {
+                    if (e.getTarget() != optionsBtn && !optionsBtn.isHover()) {
+                        openTopic(topic);
                     }
                 });
-
-                childrenBox.getChildren().add(pageRow);
             }
 
-            // List Attached Files (PDF, PPTX, etc.)
-            for (TopicFile file : topic.getFiles()) {
-                HBox fileRow = new HBox(6);
-                fileRow.setAlignment(Pos.CENTER_LEFT);
-                fileRow.getStyleClass().add("page-item");
+            topicSection.getChildren().add(topicHeader);
 
-                Label fileIcon = new Label(file.getFileIcon());
-                fileIcon.setStyle("-fx-font-size: 12px;");
+            if (isOpened) {
+                // Pages & Files Container (Indented)
+                VBox childrenBox = new VBox(2);
+                childrenBox.setPadding(new Insets(2, 0, 4, 16));
 
-                Label fileNameLabel = new Label(file.getOriginalName());
-                fileNameLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #475569;");
-                HBox.setHgrow(fileNameLabel, Priority.ALWAYS);
+                boolean hasContent = false;
 
-                Label sizeLabel = new Label(file.getFormattedSize());
-                sizeLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #94a3b8;");
-
-                Button fileMenuBtn = new Button("⋮");
-                fileMenuBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #94a3b8; -fx-font-size: 12px; -fx-padding: 0 2px; -fx-cursor: hand;");
-
-                ContextMenu fileMenu = new ContextMenu();
-                MenuItem openItem = new MenuItem("▶ Open (Default App)");
-                openItem.setOnAction(e -> handleOpenFile(file));
-
-                MenuItem openWithItem = new MenuItem("⚙ Choose App (Open With...)");
-                openWithItem.setOnAction(e -> handleOpenWith(file));
-
-                MenuItem showInExplorerItem = new MenuItem("📁 Show in Explorer");
-                showInExplorerItem.setOnAction(e -> handleShowInExplorer(file));
-
-                MenuItem deleteFileItem = new MenuItem("🗑 Remove File");
-                deleteFileItem.setOnAction(e -> {
-                    DatabaseHelper.deleteTopicFile(file.getId());
-                    loadTopicsExplorer();
-                });
-
-                fileMenu.getItems().addAll(openItem, openWithItem, showInExplorerItem, new SeparatorMenuItem(), deleteFileItem);
-                fileMenuBtn.setOnAction(e -> fileMenu.show(fileMenuBtn, javafx.geometry.Side.BOTTOM, 0, 0));
-
-                fileRow.getChildren().addAll(fileIcon, fileNameLabel, sizeLabel, fileMenuBtn);
-
-                fileRow.setOnContextMenuRequested(e -> fileMenu.show(fileRow, e.getScreenX(), e.getScreenY()));
-
-                fileRow.setOnMouseClicked(e -> {
-                    if (e.getTarget() != fileMenuBtn && !fileMenuBtn.isHover()) {
-                        handleOpenFile(file);
+                // List Pages
+                for (Page page : topic.getPages()) {
+                    hasContent = true;
+                    if (firstPageToSelect == null) {
+                        firstPageToSelect = page;
+                        firstPageTopic = topic;
                     }
-                });
 
-                childrenBox.getChildren().add(fileRow);
+                    HBox pageRow = new HBox(6);
+                    pageRow.setAlignment(Pos.CENTER_LEFT);
+                    pageRow.getStyleClass().add("page-item");
+                    if (currentPage != null && currentPage.getId() == page.getId()) {
+                        pageRow.getStyleClass().add("page-item-active");
+                    }
+
+                    Label pageIcon = new Label("📄");
+                    pageIcon.setStyle("-fx-font-size: 12px;");
+
+                    Label pageTitleLabel = new Label(page.getTitle());
+                    pageTitleLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #334155;");
+                    HBox.setHgrow(pageTitleLabel, Priority.ALWAYS);
+
+                    Button pageMenuBtn = new Button("⋮");
+                    pageMenuBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #94a3b8; -fx-font-size: 12px; -fx-padding: 0 2px; -fx-cursor: hand;");
+
+                    ContextMenu pageMenu = new ContextMenu();
+                    MenuItem renamePageItem = new MenuItem("✏ Rename Page");
+                    renamePageItem.setOnAction(me -> promptRenamePage(topic, page));
+
+                    MenuItem deletePageItem = new MenuItem("🗑 Delete Page");
+                    deletePageItem.setOnAction(me -> deletePage(topic, page));
+
+                    pageMenu.getItems().addAll(renamePageItem, new SeparatorMenuItem(), deletePageItem);
+                    pageMenuBtn.setOnAction(me -> pageMenu.show(pageMenuBtn, javafx.geometry.Side.BOTTOM, 0, 0));
+
+                    pageRow.getChildren().addAll(pageIcon, pageTitleLabel, pageMenuBtn);
+
+                    pageRow.setOnMouseClicked(pe -> {
+                        if (pe.getTarget() != pageMenuBtn && !pageMenuBtn.isHover()) {
+                            selectPage(topic, page);
+                        }
+                    });
+
+                    childrenBox.getChildren().add(pageRow);
+                }
+
+                // List Attached Files (PDF, PPTX, etc.)
+                for (TopicFile file : topic.getFiles()) {
+                    hasContent = true;
+                    HBox fileRow = new HBox(6);
+                    fileRow.setAlignment(Pos.CENTER_LEFT);
+                    fileRow.getStyleClass().add("page-item");
+
+                    Label fileIcon = new Label(file.getFileIcon());
+                    fileIcon.setStyle("-fx-font-size: 12px;");
+
+                    Label fileNameLabel = new Label(file.getOriginalName());
+                    fileNameLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #475569;");
+                    HBox.setHgrow(fileNameLabel, Priority.ALWAYS);
+
+                    Label sizeLabel = new Label(file.getFormattedSize());
+                    sizeLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #94a3b8;");
+
+                    Button fileMenuBtn = new Button("⋮");
+                    fileMenuBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #94a3b8; -fx-font-size: 12px; -fx-padding: 0 2px; -fx-cursor: hand;");
+
+                    ContextMenu fileMenu = new ContextMenu();
+                    MenuItem openItem = new MenuItem("▶ Open (Default App)");
+                    openItem.setOnAction(me -> handleOpenFile(file));
+
+                    MenuItem openWithItem = new MenuItem("⚙ Choose App (Open With...)");
+                    openWithItem.setOnAction(me -> handleOpenWith(file));
+
+                    MenuItem showInExplorerItem = new MenuItem("📁 Show in Explorer");
+                    showInExplorerItem.setOnAction(me -> handleShowInExplorer(file));
+
+                    MenuItem deleteFileItem = new MenuItem("🗑 Remove File");
+                    deleteFileItem.setOnAction(me -> {
+                        DatabaseHelper.deleteTopicFile(file.getId());
+                        loadTopicsExplorer();
+                    });
+
+                    fileMenu.getItems().addAll(openItem, openWithItem, showInExplorerItem, new SeparatorMenuItem(), deleteFileItem);
+                    fileMenuBtn.setOnAction(me -> fileMenu.show(fileMenuBtn, javafx.geometry.Side.BOTTOM, 0, 0));
+
+                    fileRow.getChildren().addAll(fileIcon, fileNameLabel, sizeLabel, fileMenuBtn);
+
+                    fileRow.setOnContextMenuRequested(me -> fileMenu.show(fileRow, me.getScreenX(), me.getScreenY()));
+
+                    fileRow.setOnMouseClicked(fe -> {
+                        if (fe.getTarget() != fileMenuBtn && !fileMenuBtn.isHover()) {
+                            handleOpenFile(file);
+                        }
+                    });
+
+                    childrenBox.getChildren().add(fileRow);
+                }
+
+                if (!hasContent) {
+                    Label emptyTopicHint = new Label("No pages or files yet. Click + Page to create one.");
+                    emptyTopicHint.setStyle("-fx-font-size: 11px; -fx-text-fill: #94a3b8; -fx-font-style: italic; -fx-padding: 4px 8px;");
+                    childrenBox.getChildren().add(emptyTopicHint);
+                }
+
+                topicSection.getChildren().add(childrenBox);
             }
 
-            topicSection.getChildren().addAll(topicHeader, childrenBox);
             topicsListContainer.getChildren().add(topicSection);
         }
 
-        // Maintain or initialize page selection
-        if (currentPage != null) {
-            renderPageCanvas(currentPage);
+        // Maintain or initialize page selection for the opened topic
+        if (currentPage != null && currentTopic != null) {
+            boolean pageBelongsToTopic = false;
+            for (Page p : currentTopic.getPages()) {
+                if (p.getId() == currentPage.getId()) {
+                    pageBelongsToTopic = true;
+                    break;
+                }
+            }
+            if (pageBelongsToTopic) {
+                renderPageCanvas(currentPage);
+            } else if (!currentTopic.getPages().isEmpty()) {
+                selectPage(currentTopic, currentTopic.getPages().get(0));
+            } else {
+                currentPage = null;
+                showEmptyPlaygroundState();
+            }
         } else if (firstPageToSelect != null) {
             selectPage(firstPageTopic, firstPageToSelect);
         } else {
             showEmptyPlaygroundState();
         }
+    }
+
+    /**
+     * Sets the specified topic as the currently opened topic.
+     * Selects its first page if available, or displays the empty playground prompt.
+     */
+    private void openTopic(Topic topic) {
+        if (topic == null) return;
+        this.currentTopic = topic;
+        if (topic.getPages() != null && !topic.getPages().isEmpty()) {
+            selectPage(topic, topic.getPages().get(0));
+        } else {
+            this.currentPage = null;
+            if (notebookBreadcrumbLabel != null && currentNotebook != null) {
+                notebookBreadcrumbLabel.setText("📘 " + currentNotebook.getTitle()
+                        + "  ›  📂 " + topic.getTitle());
+            }
+            showEmptyPlaygroundState();
+        }
+        loadTopicsExplorer();
     }
 
     /**
@@ -779,8 +866,15 @@ public class HelloController {
         res.ifPresent(title -> {
             String clean = title.trim();
             if (!clean.isEmpty()) {
-                DatabaseHelper.createTopic(currentNotebook.getId(), clean);
+                int newTopicId = DatabaseHelper.createTopic(currentNotebook.getId(), clean);
+                this.currentTopic = new Topic(newTopicId, currentNotebook.getId(), clean, 0);
+                this.currentPage = null;
+                if (notebookBreadcrumbLabel != null) {
+                    notebookBreadcrumbLabel.setText("📘 " + currentNotebook.getTitle()
+                            + "  ›  📂 " + clean);
+                }
                 loadTopicsExplorer();
+                showEmptyPlaygroundState();
             }
         });
     }
@@ -798,6 +892,7 @@ public class HelloController {
         res.ifPresent(title -> {
             String clean = title.trim();
             if (!clean.isEmpty()) {
+                this.currentTopic = topic;
                 int pageId = DatabaseHelper.createPage(topic.getId(), clean);
                 Page newPage = DatabaseHelper.getPageById(pageId);
                 loadTopicsExplorer();
@@ -906,8 +1001,16 @@ public class HelloController {
                 String updatedTitle = pageTitleField.getText().trim();
                 if (!updatedTitle.isEmpty() && !updatedTitle.equals(page.getTitle())) {
                     page.setTitle(updatedTitle);
-                    DatabaseHelper.updatePage(page.getId(), updatedTitle, page.getContentJson());
-                    if (workspaceStatusLabel != null) workspaceStatusLabel.setText("Title saved ✓");
+                    if (currentNotebook != null) {
+                        NotebookJobQueue.getInstance().submitJob(new PageSaveJob(
+                                currentNotebook.getId(),
+                                page.getId(),
+                                updatedTitle,
+                                page.getContentJson(),
+                                workspaceStatusLabel,
+                                true
+                        ));
+                    }
                     if (currentNotebook != null && currentTopic != null) {
                         notebookBreadcrumbLabel.setText("📘 " + currentNotebook.getTitle()
                                 + "  ›  📂 " + currentTopic.getTitle()
@@ -1210,20 +1313,35 @@ public class HelloController {
     }
 
     private void saveCurrentPageBlocks() {
-        if (currentPage == null) return;
+        if (currentPage == null || currentNotebook == null) return;
         String json = PageBlock.serializeList(currentPageBlocks);
         currentPage.setContentJson(json);
-        DatabaseHelper.updatePage(currentPage.getId(), currentPage.getTitle(), json);
-        if (workspaceStatusLabel != null) {
-            workspaceStatusLabel.setText("Saved ✓ " + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
-        }
+        // Producer: dispatch asynchronous save job to consumer worker thread pool
+        PageSaveJob job = new PageSaveJob(
+                currentNotebook.getId(),
+                currentPage.getId(),
+                currentPage.getTitle(),
+                json,
+                workspaceStatusLabel,
+                true
+        );
+        NotebookJobQueue.getInstance().submitJob(job);
     }
 
     private void saveCurrentPageBlocksQuietly() {
-        if (currentPage == null) return;
+        if (currentPage == null || currentNotebook == null) return;
         String json = PageBlock.serializeList(currentPageBlocks);
         currentPage.setContentJson(json);
-        DatabaseHelper.updatePage(currentPage.getId(), currentPage.getTitle(), json);
+        // Producer: dispatch asynchronous save job without distracting badge change
+        PageSaveJob job = new PageSaveJob(
+                currentNotebook.getId(),
+                currentPage.getId(),
+                currentPage.getTitle(),
+                json,
+                workspaceStatusLabel,
+                false
+        );
+        NotebookJobQueue.getInstance().submitJob(job);
     }
 
     private void promptUploadImage() {
@@ -1321,13 +1439,23 @@ public class HelloController {
         Label icon = new Label("📄");
         icon.setStyle("-fx-font-size: 40px;");
 
-        Label title = new Label("No Page Selected");
+        Label title = new Label(currentTopic != null ? "No Pages in \"" + currentTopic.getTitle() + "\"" : "No Page Selected");
         title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #1e293b;");
 
-        Label sub = new Label("Select a page from the Topics Explorer on the left, or add a new page to begin writing.");
+        Label sub = new Label(currentTopic != null
+                ? "This topic doesn't have any pages yet. Click below to add the first page."
+                : "Select a page from the Topics Explorer on the left, or add a new page to begin writing.");
         sub.setStyle("-fx-font-size: 12px; -fx-text-fill: #64748b;");
 
         emptyPrompt.getChildren().addAll(icon, title, sub);
+
+        if (currentTopic != null) {
+            Button addFirstPageBtn = new Button("📝 + Add First Page to \"" + currentTopic.getTitle() + "\"");
+            addFirstPageBtn.setStyle("-fx-background-color: #6366f1; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8px 16px; -fx-background-radius: 6px; -fx-cursor: hand;");
+            addFirstPageBtn.setOnAction(e -> promptAddPage(currentTopic));
+            emptyPrompt.getChildren().add(addFirstPageBtn);
+        }
+
         pagePlaygroundContainer.getChildren().add(emptyPrompt);
     }
 
@@ -1336,6 +1464,7 @@ public class HelloController {
      */
     private void attachFileToTopic(Topic topic) {
         if (topic == null || currentNotebook == null) return;
+        this.currentTopic = topic;
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Attach Files to " + topic.getTitle());
         fileChooser.getExtensionFilters().addAll(
