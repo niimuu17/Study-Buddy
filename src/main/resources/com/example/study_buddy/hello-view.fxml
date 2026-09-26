@@ -78,8 +78,6 @@
                     <Label text="Recent notebooks" style="-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" />
                     <Button fx:id="myNotebooksBtn" onAction="#handleMyNotebooks" styleClass="btn-secondary-action" text="📚 My Notebooks" />
                     <Button fx:id="newNotebookBtn" onAction="#handleNewNotebook" styleClass="btn-primary" text="+ New Notebook" />
-                    <Region HBox.hgrow="ALWAYS" />
-                    <Button fx:id="quickQuizBtn" onAction="#handleOpenQuiz" styleClass="btn-secondary-action" text="🧠 AI Quiz" />
                 </HBox>
 
                 <!-- Notebooks Scrollable Content Area -->

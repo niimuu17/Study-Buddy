@@ -75,7 +75,6 @@ public class HelloController {
     @FXML private Button navRoutineBtn;
     @FXML private Button navCalendarBtn;
     @FXML private Button navQuizBtn;
-    @FXML private Button quickQuizBtn;
 
     // AI Quiz Components (Built using BorderPane for Teacher Requirement #3)
     @FXML private BorderPane quizView;
