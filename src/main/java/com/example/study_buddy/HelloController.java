@@ -606,12 +606,40 @@ public class HelloController {
 
             cardHeader.getChildren().addAll(qNumLabel, spacer, badge);
 
-            // Question prompt text
-            Label promptLabel = new Label(q.getQuestionText());
+            // Question prompt text with See More / See Less for long questions
+            String fullQuestionText = q.getQuestionText();
+            Label promptLabel = new Label();
             promptLabel.setWrapText(true);
+            promptLabel.setMinHeight(Region.USE_PREF_SIZE);
             promptLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #334155;");
+            promptLabel.prefWidthProperty().bind(card.widthProperty().subtract(40));
 
             card.getChildren().addAll(cardHeader, promptLabel);
+
+            if (fullQuestionText.length() > 160) {
+                int cutIdx = fullQuestionText.lastIndexOf(' ', 140);
+                if (cutIdx <= 0) cutIdx = 140;
+                String excerpt = fullQuestionText.substring(0, cutIdx).trim() + "...";
+                promptLabel.setText(excerpt);
+
+                Button seeMoreBtn = new Button("See More ▾");
+                seeMoreBtn.getStyleClass().add("quiz-see-more-btn");
+                boolean[] isExpanded = new boolean[]{false};
+                seeMoreBtn.setOnAction(e -> {
+                    if (!isExpanded[0]) {
+                        promptLabel.setText(fullQuestionText);
+                        seeMoreBtn.setText("See Less ▴");
+                        isExpanded[0] = true;
+                    } else {
+                        promptLabel.setText(excerpt);
+                        seeMoreBtn.setText("See More ▾");
+                        isExpanded[0] = false;
+                    }
+                });
+                card.getChildren().add(seeMoreBtn);
+            } else {
+                promptLabel.setText(fullQuestionText);
+            }
 
             if (q.getType() == QuizQuestion.QuestionType.MCQ) {
                 // 4 Interactive MCQ Cards
