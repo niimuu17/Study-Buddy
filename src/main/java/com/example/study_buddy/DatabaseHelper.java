@@ -125,6 +125,53 @@ public class DatabaseHelper {
                 + "FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE"
                 + ");";
 
+        String createCoursesTable = "CREATE TABLE IF NOT EXISTS courses ("
+                + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "user_id INTEGER NOT NULL, "
+                + "course_code TEXT NOT NULL, "
+                + "course_title TEXT NOT NULL, "
+                + "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                + "FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE"
+                + ");";
+
+        String createSyllabusChaptersTable = "CREATE TABLE IF NOT EXISTS syllabus_chapters ("
+                + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "course_id INTEGER NOT NULL, "
+                + "chapter_number INTEGER NOT NULL, "
+                + "title TEXT NOT NULL, "
+                + "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                + "FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE"
+                + ");";
+
+        String createSyllabusTopicsTable = "CREATE TABLE IF NOT EXISTS syllabus_topics ("
+                + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "chapter_id INTEGER NOT NULL, "
+                + "title TEXT NOT NULL, "
+                + "is_completed INTEGER DEFAULT 0, "
+                + "completed_at TIMESTAMP, "
+                + "FOREIGN KEY(chapter_id) REFERENCES syllabus_chapters(id) ON DELETE CASCADE"
+                + ");";
+
+        String createAcademicMarksTable = "CREATE TABLE IF NOT EXISTS academic_marks ("
+                + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "course_id INTEGER NOT NULL, "
+                + "assessment_type TEXT NOT NULL, "
+                + "assessment_name TEXT NOT NULL, "
+                + "obtained_marks REAL NOT NULL, "
+                + "total_marks REAL NOT NULL, "
+                + "exam_date TEXT, "
+                + "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                + "FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE"
+                + ");";
+
+        String createTermExamConfigTable = "CREATE TABLE IF NOT EXISTS term_exam_config ("
+                + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "course_id INTEGER NOT NULL UNIQUE, "
+                + "exam_date TEXT NOT NULL, "
+                + "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                + "FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE"
+                + ");";
+
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
             stmt.execute(createUsersTable);
@@ -136,6 +183,11 @@ public class DatabaseHelper {
             stmt.execute(createPagesTable);
             stmt.execute(createTopicFilesTable);
             stmt.execute(createCalendarTasksTable);
+            stmt.execute(createCoursesTable);
+            stmt.execute(createSyllabusChaptersTable);
+            stmt.execute(createSyllabusTopicsTable);
+            stmt.execute(createAcademicMarksTable);
+            stmt.execute(createTermExamConfigTable);
         } catch (SQLException e) {
             System.err.println("Failed to initialize database: " + e.getMessage());
             e.printStackTrace();
@@ -1051,5 +1103,257 @@ public class DatabaseHelper {
             pstmt.setInt(1, notebookId);
             pstmt.executeUpdate();
         } catch (SQLException ignored) {}
+    }
+
+    // ==========================================
+    // Course & Academic Progress CRUD
+    // ==========================================
+
+    public static List<Course> getCourses(int userId) {
+        List<Course> list = new ArrayList<>();
+        String sql = "SELECT id, user_id, course_code, course_title, created_at FROM courses WHERE user_id = ? ORDER BY id ASC";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new Course(
+                            rs.getInt("id"),
+                            rs.getInt("user_id"),
+                            rs.getString("course_code"),
+                            rs.getString("course_title"),
+                            rs.getString("created_at")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    public static Course createCourse(int userId, String courseCode, String courseTitle) {
+        String sql = "INSERT INTO courses (user_id, course_code, course_title) VALUES (?, ?, ?)";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setInt(1, userId);
+            pstmt.setString(2, courseCode != null ? courseCode.trim() : "");
+            pstmt.setString(3, courseTitle != null ? courseTitle.trim() : "");
+            pstmt.executeUpdate();
+            try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                if (rs.next()) {
+                    return new Course(rs.getInt(1), userId, courseCode, courseTitle, null);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static boolean deleteCourse(int courseId) {
+        String sql = "DELETE FROM courses WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, courseId);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public static List<SyllabusChapter> getSyllabusChapters(int courseId) {
+        List<SyllabusChapter> chapters = new ArrayList<>();
+        String chapSql = "SELECT id, course_id, chapter_number, title FROM syllabus_chapters WHERE course_id = ? ORDER BY chapter_number ASC, id ASC";
+        String topicSql = "SELECT id, chapter_id, title, is_completed, completed_at FROM syllabus_topics WHERE chapter_id = ? ORDER BY id ASC";
+
+        try (Connection conn = getConnection();
+             PreparedStatement chapPstmt = conn.prepareStatement(chapSql)) {
+            chapPstmt.setInt(1, courseId);
+            try (ResultSet rs = chapPstmt.executeQuery()) {
+                while (rs.next()) {
+                    SyllabusChapter ch = new SyllabusChapter(
+                            rs.getInt("id"),
+                            rs.getInt("course_id"),
+                            rs.getInt("chapter_number"),
+                            rs.getString("title")
+                    );
+
+                    try (PreparedStatement topicPstmt = conn.prepareStatement(topicSql)) {
+                        topicPstmt.setInt(1, ch.getId());
+                        try (ResultSet trs = topicPstmt.executeQuery()) {
+                            List<SyllabusTopic> topics = new ArrayList<>();
+                            while (trs.next()) {
+                                topics.add(new SyllabusTopic(
+                                        trs.getInt("id"),
+                                        trs.getInt("chapter_id"),
+                                        trs.getString("title"),
+                                        trs.getInt("is_completed") == 1,
+                                        trs.getString("completed_at")
+                                ));
+                            }
+                            ch.setTopics(topics);
+                        }
+                    }
+                    chapters.add(ch);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return chapters;
+    }
+
+    public static void saveSyllabusChapters(int courseId, List<SyllabusChapter> chapters) {
+        if (chapters == null) return;
+        String delSql = "DELETE FROM syllabus_chapters WHERE course_id = ?";
+        String insChapSql = "INSERT INTO syllabus_chapters (course_id, chapter_number, title) VALUES (?, ?, ?)";
+        String insTopicSql = "INSERT INTO syllabus_topics (chapter_id, title, is_completed) VALUES (?, ?, ?)";
+
+        try (Connection conn = getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                try (PreparedStatement delPstmt = conn.prepareStatement(delSql)) {
+                    delPstmt.setInt(1, courseId);
+                    delPstmt.executeUpdate();
+                }
+
+                for (SyllabusChapter ch : chapters) {
+                    int chapId = 0;
+                    try (PreparedStatement chapPstmt = conn.prepareStatement(insChapSql, Statement.RETURN_GENERATED_KEYS)) {
+                        chapPstmt.setInt(1, courseId);
+                        chapPstmt.setInt(2, ch.getChapterNumber());
+                        chapPstmt.setString(3, ch.getTitle());
+                        chapPstmt.executeUpdate();
+                        try (ResultSet rs = chapPstmt.getGeneratedKeys()) {
+                            if (rs.next()) chapId = rs.getInt(1);
+                        }
+                    }
+
+                    if (chapId > 0 && ch.getTopics() != null) {
+                        try (PreparedStatement topicPstmt = conn.prepareStatement(insTopicSql)) {
+                            for (SyllabusTopic top : ch.getTopics()) {
+                                topicPstmt.setInt(1, chapId);
+                                topicPstmt.setString(2, top.getTitle());
+                                topicPstmt.setInt(3, top.isCompleted() ? 1 : 0);
+                                topicPstmt.addBatch();
+                            }
+                            topicPstmt.executeBatch();
+                        }
+                    }
+                }
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void setTopicCompleted(int topicId, boolean completed) {
+        String sql = "UPDATE syllabus_topics SET is_completed = ?, completed_at = CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, completed ? 1 : 0);
+            pstmt.setInt(2, completed ? 1 : 0);
+            pstmt.setInt(3, topicId);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static List<AcademicMark> getAcademicMarks(int courseId) {
+        List<AcademicMark> list = new ArrayList<>();
+        String sql = "SELECT id, course_id, assessment_type, assessment_name, obtained_marks, total_marks, exam_date, created_at FROM academic_marks WHERE course_id = ? ORDER BY id ASC";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, courseId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new AcademicMark(
+                            rs.getInt("id"),
+                            rs.getInt("course_id"),
+                            rs.getString("assessment_type"),
+                            rs.getString("assessment_name"),
+                            rs.getDouble("obtained_marks"),
+                            rs.getDouble("total_marks"),
+                            rs.getString("exam_date"),
+                            rs.getString("created_at")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    public static AcademicMark addAcademicMark(int courseId, String type, String name, double obtained, double total, String date) {
+        String sql = "INSERT INTO academic_marks (course_id, assessment_type, assessment_name, obtained_marks, total_marks, exam_date) VALUES (?, ?, ?, ?, ?, ?)";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setInt(1, courseId);
+            pstmt.setString(2, type);
+            pstmt.setString(3, name);
+            pstmt.setDouble(4, obtained);
+            pstmt.setDouble(5, total);
+            pstmt.setString(6, date);
+            pstmt.executeUpdate();
+            try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                if (rs.next()) {
+                    return new AcademicMark(rs.getInt(1), courseId, type, name, obtained, total, date, null);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static boolean deleteAcademicMark(int markId) {
+        String sql = "DELETE FROM academic_marks WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, markId);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public static String getTermExamDate(int courseId) {
+        String sql = "SELECT exam_date FROM term_exam_config WHERE course_id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, courseId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("exam_date");
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static void setTermExamDate(int courseId, String date) {
+        String sql = "INSERT INTO term_exam_config (course_id, exam_date) VALUES (?, ?) "
+                + "ON CONFLICT(course_id) DO UPDATE SET exam_date = excluded.exam_date";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, courseId);
+            pstmt.setString(2, date);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 }

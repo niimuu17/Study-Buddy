@@ -13,11 +13,18 @@ import java.util.List;
 public class QuizSourceHelper {
 
     /**
-     * Reads text content from a chosen file.
+     * Reads text content from a chosen file (supports .pdf, .txt, .md, .json, etc.).
      */
     public static String readFileContent(File file) throws IOException {
         if (file == null || !file.exists()) {
             return "";
+        }
+        String name = file.getName().toLowerCase();
+        if (name.endsWith(".pdf")) {
+            try (org.apache.pdfbox.pdmodel.PDDocument document = org.apache.pdfbox.Loader.loadPDF(file)) {
+                org.apache.pdfbox.text.PDFTextStripper stripper = new org.apache.pdfbox.text.PDFTextStripper();
+                return stripper.getText(document);
+            }
         }
         byte[] bytes = Files.readAllBytes(file.toPath());
         return new String(bytes, StandardCharsets.UTF_8);

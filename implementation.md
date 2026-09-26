@@ -1,256 +1,208 @@
-# Implementation Plan: AI Quiz System (MCQ & Short Answer with Gemini API)
+# Implementation Plan: Academic Progress Tracker
 
-> **Document Version**: 1.0  
-> **Target Requirement**: Requirement 8 (Networking & Remote JSON Parsing), Requirement 3 (BorderPane UI Design), Requirement 4 (Responsiveness), and Requirement 5 (Concurrency).
-
----
-
-## 1. Executive Summary & Evaluation Mechanism
-
-### How Evaluation Works: The 2-Call Model
-You asked:
-> *"How the evaluation will be done? by submit button and later different api call? total 2 calls per quize?"*
-
-**Answer:** **Yes, exactly! It is a clean, cost-effective 2-call model:**
-
-```
-                    ┌────────────────────────────────────────────────────────┐
-                    │                      STUDENT UI                        │
-                    └────────────────────────────────────────────────────────┘
-                                    │                           ▲
-                 1. User clicks     │                           │ 4. Render Quiz
-                 "Generate Quiz"    ▼                           │    in BorderPane
-                    ┌────────────────────────┐                  │
-                    │   CALL #1: GENERATION  │──────────────────┘
-                    │  (Gemini REST API)     │
-                    └────────────────────────┘
-                                    │
-                                    ▼ [Student solves MCQs & types Short Answers]
-                                    │
-                 2. User clicks     │
-                 "Submit Quiz"      ▼
-                    ┌────────────────────────────────────────────────────────┐
-                    │               SUBMISSION & EVALUATION                  │
-                    │                                                        │
-                    │  ┌──────────────────────┐  ┌────────────────────────┐  │
-                    │  │   MCQ Questions      │  │ Short Answer Questions │  │
-                    │  │  (Graded LOCALLY in  │  │   (Requires AI grader) │  │
-                    │  │   Java, 0ms latency) │  │                        │  │
-                    │  └──────────────────────┘  └───────────┬────────────┘  │
-                    │                                        │               │
-                    │                             3. Send    ▼               │
-                    │                             Student Responses          │
-                    │                            ┌────────────────────────┐  │
-                    │                            │   CALL #2: AI GRADING  │  │
-                    │                            │   (Gemini REST API)    │  │
-                    │                            └───────────┬────────────┘  │
-                    │                                        │               │
-                    │                                        ▼               │
-                    │                             Returns Scores & Feedback  │
-                    └────────────────────────────────────────┼───────────────┘
-                                                             │
-                                                             ▼
-                                     ┌────────────────────────────────────────────────┐
-                                     │  5. Display Comprehensive Results & Feedback   │
-                                     └────────────────────────────────────────────────┘
-```
-
-### Call Breakdown:
-1. **Call #1 (Quiz Generation)**:
-   - Triggered when the user clicks **"Generate Quiz"**.
-   - Sends: Question count, difficulty level (`Easy`, `Medium`, `Hard`), question types (`MCQ`, `Short Answer`, or `Both`), user prompt/topic, and optional source context (uploaded file text or extracted notes from a Study Buddy notebook page).
-   - Returns: Structured JSON containing question prompts, 4 options per MCQ with the correct index, and rubric/model answers for short answer questions.
-2. **Call #2 (Short Answer Grading)**:
-   - Triggered when the user clicks **"Submit Quiz"**.
-   - **MCQs**: Graded **instantly and locally** in Java code ($O(1)$) by checking the student's selected card index against `correctIndex`. Zero latency, zero cost!
-   - **Short Answers**: Study Buddy bundles the questions, reference rubrics, and the student's typed responses into a single grading request to Gemini.
-   - Returns: Structured JSON with numeric scores (e.g. out of 5) and constructive qualitative feedback for each question.
-   - *Note*: If the user creates an "MCQ Only" quiz, Call #2 is skipped entirely (1 call total). If short answers are included, it is **2 calls total per quiz**.
+> **Target Teacher Requirements**: 
+> - **Requirement 3 (JavaFX UI Design)**: 2-level hierarchical navigation (`FlowPane` Course Cards &rarr; 2-Column Detail View), `PieChart`, `BarChart`, custom checkbox tree items, `ProgressBar`, modal dialogs.
+> - **Requirement 4 (Layout Responsiveness)**: Responsive `FlowPane` wrap, dynamic `HGrow`/`VGrow` bindings across window resizes.
+> - **Requirement 5 (Concurrency & Multi-threading)**: Multi-threaded background execution for PDF text parsing and Gemini AI calls using worker thread pool and `Platform.runLater()`.
+> - **Requirement 6 (Database Integration)**: SQLite relational schema with 5 tables linked via `FOREIGN KEY` and `ON DELETE CASCADE`.
+> - **Requirement 7 (CRUD Operations)**: Full CRUD across Courses, Syllabus Chapters/Topics, Marks, and Term Exam Dates.
+> - **Requirement 8 (Networking & Remote JSON Parsing)**: Gemini REST API calls with multi-model failover for intelligent syllabus hierarchy extraction and term exam pacing forecasts.
 
 ---
 
-## 2. Architecture & Design Alignment
+## 1. User Interface & Screen Flow
 
-### Fulfilling Teacher's Academic Requirements
-
-| Teacher Requirement | How the AI Quiz System Delivers It |
-|---|---|
-| **Requirement 8: Networking & JSON Parsing** | Uses Java 21's native `java.net.http.HttpClient` to make asynchronous HTTPS POST requests to Google Gemini REST endpoint, sending JSON payloads and deserializing JSON responses using `Jackson` (`ObjectMapper`). |
-| **Requirement 3: JavaFX UI Design (BorderPane)** | The entire Quiz view is built using a **`BorderPane`**: <br>• `Top`: Quiz title, countdown/progress indicator, settings & back buttons. <br>• `Center`: Scrollable question viewport (MCQ 4-card grid + Short Answer text areas). <br>• `Bottom`: Action bar with "Submit Quiz" button, answered counter, and score display. |
-| **Requirement 5: Concurrency** | All network I/O executes asynchronously on background worker threads (`ExecutorService` / `CompletableFuture`). The JavaFX Application Thread is never blocked; loading spinners animate smoothly, and UI updates are safely dispatched via `Platform.runLater()`. |
-| **Requirement 4: Responsiveness** | Question cards and MCQ choices adapt dynamically to window resizing using percentage widths and wrapping. |
-| **Requirement 6 & 7: Database CRUD** | Saved quiz results can be logged to SQLite (`quizzes` and `quiz_history` tables), letting students review past performance. |
+### Entry Point (Left Navigation Sidebar)
+Positioned in the Left Navigation Sidebar, directly below `🧠 Quiz`:
+```xml
+<Button fx:id="navProgressBtn" alignment="BASELINE_LEFT" maxWidth="Infinity" 
+        onAction="#handleOpenProgress" styleClass="nav-item" text="📊  Progress" />
+```
 
 ---
 
-## 3. Data Models & JSON Schemas
+### Screen 1: Course Cards Gallery (Landing Screen)
+When the user clicks `📊 Progress`, they first see the clean **Course Cards Gallery**:
+- **Header**:
+  - Title: `📚 Academic Courses`
+  - Subtitle: `Select a course to view syllabus checklist, marks, and AI exam forecast`
+  - Action Button: `+ Add Course` (opens dialog to enter Course Code & Course Title)
+- **Course Cards Grid (`FlowPane`)**:
+  - Each course card displays **strictly Course Code and Course Title**:
+  
+  ```
+  +--------------------------------+   +--------------------------------+   +--------------------------------+
+  |  CSE 2100                      |   |  CSE 2201                      |   |  MATH 2105                     |
+  |  Object-Oriented Programming   |   |  Data Structures & Algorithms  |   |  Discrete Mathematics          |
+  +--------------------------------+   +--------------------------------+   +--------------------------------+
+  ```
 
-### A. Quiz Question Model (`QuizQuestion.java`)
-```java
-public class QuizQuestion {
-    public enum Type { MCQ, SHORT_ANSWER }
+---
 
-    private Type type;
-    private String questionText;
-    
-    // MCQ fields
-    private List<String> options;      // Exactly 4 options: [A, B, C, D]
-    private int correctIndex;          // 0 to 3
-    private String explanation;
-    private Integer userSelectedOption; // student choice (-1 or null if unanswered)
-    
-    // Short Answer fields
-    private String rubric;             // Key points expected in answer
-    private String studentAnswer;      // User typed response
-    private int maxScore;              // e.g., 5
-    private int awardedScore;          // graded by AI (0 to maxScore)
-    private String aiFeedback;         // explanation of points given/deducted
-}
+### Screen 2: Course Progress Detail View (After Clicking a Course Card)
+Clicking on any course card transitions smoothly to that course's detailed progress workspace:
+
+```
++-----------------------------------------------------------------------------------------------------------------+
+| TOP BAR: ◀ Back to Courses   |   CSE 2100 - Object-Oriented Programming                                          |
+|                              [ 📄 Upload Syllabus PDF ]  [ 📅 Set Term Exam Date ]  [ ➕ Add Marks ]             |
++-----------------------------------------------------------------------------------------------------------------+
+|                                                        |                                                        |
+| LEFT COLUMN (55% Width): SYLLABUS HIERARCHY            | RIGHT COLUMN (45% Width): MARKS & FORECAST             |
+|                                                        |                                                        |
+| Overall Completion: [====================] 68%         | 📝 ASSESSMENT MARKS SUMMARY                            |
+| 12 of 18 Topics Completed                              | • CT 1: 18.0 / 20.0          (90%)                     |
+|                                                        | • CT 2: 19.5 / 20.0          (97%)                     |
+| 📖 Chapter 1: Introduction to OOP & Java (3/3)         | • CT Assignment: 24.0 / 25.0 (96%)                     |
+|   ☑ Classes, Objects & Methods                         | • Lab Test 1: 28.0 / 30.0    (93%)                     |
+|   ☑ Encapsulation & Access Modifiers                   | • Lab Quiz: 9.0 / 10.0       (90%)                     |
+|   ☑ Constructors & this keyword                        |                                                        |
+|                                                        | 📊 VISUAL JAVAFX PROGRESS GRAPH                        |
+| 📖 Chapter 2: Inheritance & Interfaces (2/3)           | +----------------------------------------------------+ |
+|   ☑ Subclasses & super keyword                         | |     [PieChart: 68% Completed / 32% Remaining]      | |
+|   ☑ Abstract Classes vs Interfaces                     | +----------------------------------------------------+ |
+|   ☐ Multiple Interface Polymorphism                    |                                                        |
+|                                                        | 🤖 AI TERM EXAM STRATEGY FORECAST                      |
+| 📖 Chapter 3: Multi-threading & Concurrency (1/4)      | +----------------------------------------------------+ |
+|   ☑ Thread Creation & Lifecycle                        | | ⏳ 22 Days until Term Final Exam                    | |
+|   ☐ Thread Pools (ExecutorService)                     | | 📚 6 Topics Remaining (32% of syllabus)            | |
+|   ☐ Producer-Consumer with BlockingQueue               | | 💡 AI Advice: Study ~1 topic every 3.5 days.       | |
+|   ☐ JavaFX Platform.runLater() Synchronization         | |    Prioritize Chapter 3 (Concurrency) next.        | |
+|                                                        | +----------------------------------------------------+ |
++-----------------------------------------------------------------------------------------------------------------+
 ```
 
-### B. Gemini API Schemas
-**Call 1 Request Prompt:**
-```json
-{
-  "contents": [{
-    "parts": [{
-      "text": "Generate a 5-question quiz (3 MCQ, 2 Short Answer) on 'Java Concurrency' with Medium difficulty. Format strictly as JSON."
-    }]
-  }],
-  "generationConfig": {
-    "responseMimeType": "application/json",
-    "temperature": 0.3
+---
+
+## 2. Database Schema Additions ([DatabaseHelper.java](file:///c:/Users/User/IdeaProjects/Study_Buddy/src/main/java/com/example/study_buddy/DatabaseHelper.java))
+
+Five relational SQLite tables linked with cascading foreign keys:
+
+```sql
+-- 1. Courses Table
+CREATE TABLE IF NOT EXISTS courses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    course_code TEXT NOT NULL,
+    course_title TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 2. Syllabus Chapters for a Course
+CREATE TABLE IF NOT EXISTS syllabus_chapters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL,
+    chapter_number INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
+);
+
+-- 3. Individual Topics under each Chapter
+CREATE TABLE IF NOT EXISTS syllabus_topics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chapter_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    is_completed INTEGER DEFAULT 0,
+    completed_at TIMESTAMP,
+    FOREIGN KEY(chapter_id) REFERENCES syllabus_chapters(id) ON DELETE CASCADE
+);
+
+-- 4. Academic Marks (CT, Assignment, Lab Test, Lab Quiz)
+CREATE TABLE IF NOT EXISTS academic_marks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL,
+    assessment_type TEXT NOT NULL, -- 'CT', 'CT Assignment', 'Lab Test', 'Lab Quiz'
+    assessment_name TEXT NOT NULL, -- e.g. 'CT 1', 'Lab Test 2'
+    obtained_marks REAL NOT NULL,
+    total_marks REAL NOT NULL,
+    exam_date TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
+);
+
+-- 5. Term Exam Target Date Configuration
+CREATE TABLE IF NOT EXISTS term_exam_config (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL UNIQUE,
+    exam_date TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
+);
+```
+
+---
+
+## 3. Core Logic & Implementation Details
+
+### A. PDF Syllabus Text Extraction
+- Uses **Apache PDFBox (`org.apache.pdfbox:pdfbox:3.0.2`)** added to [pom.xml](file:///c:/Users/User/IdeaProjects/Study_Buddy/pom.xml).
+- Extracts text from uploaded `.pdf` files locally in milliseconds. Text/Markdown files are read directly via standard UTF-8 stream.
+
+### B. Gemini AI Hierarchy Extraction ([GeminiApiService.java](file:///c:/Users/User/IdeaProjects/Study_Buddy/src/main/java/com/example/study_buddy/GeminiApiService.java))
+- The extracted text is sent to Google Gemini with a structured JSON schema instruction:
+  ```json
+  {
+    "chapters": [
+      {
+        "chapterNumber": 1,
+        "title": "Chapter Title",
+        "topics": ["Topic A", "Topic B", "Topic C"]
+      }
+    ]
   }
-}
-```
+  ```
+- Uses our robust multi-model failover chain (`gemini-3.8-flash` &rarr; `gemini-3.6-flash` &rarr; `gemini-3.5-flash-lite`) to avoid 429 quota spikes.
+- Parsed using Jackson `ObjectMapper` and saved directly to `syllabus_chapters` and `syllabus_topics`.
 
-**Call 1 Response JSON Schema:**
-```json
-{
-  "title": "Java Concurrency & Threading Quiz",
-  "questions": [
-    {
-      "type": "MCQ",
-      "question": "Which interface represents a task that can return a value and throw an exception?",
-      "options": ["Runnable", "Callable", "Thread", "Future"],
-      "correctIndex": 1,
-      "explanation": "Callable<V> has a call() method returning V, unlike Runnable's run() which is void."
-    },
-    {
-      "type": "SHORT_ANSWER",
-      "question": "Explain the difference between synchronized blocks and ReentrantLock in Java.",
-      "rubric": "Mentions intrinsic locking vs explicit locking, tryLock() capability, fairness policies, and interruptibility.",
-      "maxScore": 5
-    }
-  ]
-}
-```
+### C. Checkbox State Persistence & Live Chart Updates
+- When a topic checkbox is clicked (`[✓] Studied`):
+  - Updates `is_completed` in SQLite.
+  - Automatically updates the progress bar, chapter counters, and JavaFX `PieChart` in real time.
 
-**Call 2 Grading Request JSON Schema:**
-```json
-{
-  "contents": [{
-    "parts": [{
-      "text": "Grade the following student answers against the questions and rubrics. Return a JSON array with awarded score (0 to maxScore) and helpful feedback."
-    }]
-  }],
-  "generationConfig": {
-    "responseMimeType": "application/json"
-  }
-}
-```
+### D. Assessment Marks Tracker Dialog
+- Dialog allowing user to enter:
+  - Assessment Type: `CT`, `CT Assignment`, `Lab Test`, `Lab Quiz`
+  - Name: e.g. `CT 1`
+  - Obtained Score & Total Marks (e.g. `18.5` / `20.0`)
+- Renders assessment cards with percentage calculations.
+
+### E. AI Term Exam Forecast
+- Calculates days remaining until the Term Final Exam.
+- Gemini generates a concise, personalized strategy based on remaining unstudied topics and days left.
 
 ---
 
-## 4. UI/UX Design (BorderPane & Modern Glassmorphism)
+## 4. Execution Steps
 
-### Layout Wireframe (`BorderPane fx:id="quizView"`)
-```
-+-----------------------------------------------------------------------------------+
-| TOP: [◀ Back]  [🧠 AI Quiz Generator]       [Progress: 4/5 Answered]  [⚙️ API Key] |
-+-----------------------------------------------------------------------------------+
-| CENTER: Scrollable Quiz Viewport                                                  |
-|                                                                                   |
-|  [ Card 1: Question Setup / Configuration Screen (Before Generation) ]            |
-|    - Number of Questions: [ 5  ▼ ]     Difficulty: [ Medium ▼ ]                   |
-|    - Question Types: [ (•) Both   ( ) MCQ Only   ( ) Short Answer Only ]          |
-|    - Source Material: [ 📎 Upload File (.txt, .pdf) ]  or  [ 📚 Select Notebook Page ] |
-|    - Custom Topic / Prompt: [ Enter topics or paste study notes here...        ]  |
-|    - [ 🚀 Generate Quiz with AI ] (Shows sleek animated loader during Call #1)   |
-|                                                                                   |
-|  -- OR (During Quiz Playback) --                                                  |
-|                                                                                   |
-|  [ Question 1 of 5 (MCQ) ]                                                        |
-|  "Which interface represents a task that can return a value?"                     |
-|  +--------------------------------+  +--------------------------------+          |
-|  | [A] Runnable                   |  | [B] Callable       ✓ (Selected)|          |
-|  +--------------------------------+  +--------------------------------+          |
-|  | [C] Thread                     |  | [D] Future                     |          |
-|  +--------------------------------+  +--------------------------------+          |
-|                                                                                   |
-|  [ Question 2 of 5 (Short Answer) ]                                               |
-|  "Explain the difference between synchronized blocks and ReentrantLock."         |
-|  +----------------------------------------------------------------------------+  |
-|  | TextArea: "ReentrantLock allows tryLock and lockInterruptibly..."          |  |
-|  +----------------------------------------------------------------------------+  |
-|                                                                                   |
-|  -- OR (After Submit: Results & Review Mode) --                                   |
-|  [ 🎉 Score: 18 / 20 (90%) - Grade A | MCQ: 3/3 | Short Answer: 15/17 ]           |
-|  (MCQ cards show Green/Red highlighting with explanations)                         |
-|  (Short Answer cards show Score Pill: "4/5" + "🤖 AI Feedback: Great analysis...") |
-+-----------------------------------------------------------------------------------+
-| BOTTOM: [ Reset Quiz ]          [ Status: 5 of 5 answered ]       [ 📤 Submit Quiz ]|
-+-----------------------------------------------------------------------------------+
-```
+| Step | Component | Description |
+|:---:|---|---|
+| **1** | [pom.xml](file:///c:/Users/User/IdeaProjects/Study_Buddy/pom.xml) | Add `org.apache.pdfbox:pdfbox:3.0.2` dependency for PDF extraction. |
+| **2** | [DatabaseHelper.java](file:///c:/Users/User/IdeaProjects/Study_Buddy/src/main/java/com/example/study_buddy/DatabaseHelper.java) | Implement 5 new tables (`courses`, `syllabus_chapters`, `syllabus_topics`, `academic_marks`, `term_exam_config`) and complete CRUD operations. |
+| **3** | Domain Models | Create `Course.java`, `SyllabusChapter.java`, `SyllabusTopic.java`, `AcademicMark.java`. |
+| **4** | [GeminiApiService.java](file:///c:/Users/User/IdeaProjects/Study_Buddy/src/main/java/com/example/study_buddy/GeminiApiService.java) | Add `parseSyllabusHierarchy()` and `generateExamForecast()` with multi-model failover. |
+| **5** | [hello-view.fxml](file:///c:/Users/User/IdeaProjects/Study_Buddy/src/main/resources/com/example/study_buddy/hello-view.fxml) & [styles.css](file:///c:/Users/User/IdeaProjects/Study_Buddy/src/main/resources/com/example/study_buddy/styles.css) | Add `navProgressBtn` under `navQuizBtn`, `progressView` with Course Cards Gallery (`FlowPane`) and Course Detail View. |
+| **6** | [HelloController.java](file:///c:/Users/User/IdeaProjects/Study_Buddy/src/main/java/com/example/study_buddy/HelloController.java) | Implement navigation handlers, course creation dialog, card click transitions, checkbox listeners, and JavaFX charts. |
+| **7** | Verification | Run `mvn test` and test full flow (Add course &rarr; Upload PDF syllabus &rarr; Check topics &rarr; Add marks &rarr; View AI forecast). |
 
 ---
 
-## 5. Detailed Step-by-Step Implementation Steps
+## 5. Verification Plan
 
-### Phase 1: Dependencies & Configuration
-1. Update `pom.xml`:
-   - Add `com.fasterxml.jackson.core:jackson-databind` (`2.17.2`) for clean JSON parsing, object mapping, and payload formatting.
-2. Create `ApiKeyManager.java` or `SettingsService.java`:
-   - Manages Gemini API Key securely (checks environment variable `GEMINI_API_KEY` or persists user-entered key in `study_buddy_data/settings.properties`).
-   - Includes a sleek API Key input dialog with a direct link to Google AI Studio (free key generation).
-
-### Phase 2: Core Networking & Data Models
-1. Create `QuizQuestion.java`:
-   - Enums and properties for MCQ options, selections, correct index, rubric, and short answer feedback.
-2. Create `QuizSession.java`:
-   - Encapsulates the active quiz, metadata, question list, submission state, and score calculation logic.
-3. Create `GeminiApiService.java`:
-   - Uses `java.net.http.HttpClient` with asynchronous HTTP POST requests.
-   - `generateQuiz(QuizConfig config)`: Call #1 (Generates quiz JSON and maps to `QuizSession`).
-   - `gradeShortAnswers(QuizSession session)`: Call #2 (Submits short answer responses and parses grading JSON).
-   - Handles network timeouts, invalid keys, and rate limits gracefully with user-friendly error banners.
-
-### Phase 3: UI Construction with BorderPane
-1. Add `navQuizBtn` to the left navigation sidebar in `hello-view.fxml`.
-2. Add `<BorderPane fx:id="quizView" ...>` to `centerWorkspace` in `hello-view.fxml`.
-3. Build the interactive UI components:
-   - **Config View**: Inputs for question count, difficulty, topic prompt, and source picker (file upload or notebook page extractor).
-   - **Quiz View**: Dynamic question builder with 4-card MCQ selection (custom CSS cards with hover/active states) and styled `TextArea` for short answers.
-   - **Submission & Results View**: Score breakdown header, color-coded answers, explanations, and AI grading remarks.
-
-### Phase 4: Controller Integration & Concurrency
-1. Update `HelloController.java`:
-   - Add `handleOpenQuiz()` view toggle.
-   - Bind quiz generation and submission to background worker threads.
-   - Integrate "Pull from current Notebook Page" allowing the student to directly quiz themselves on their open notebook notes!
-2. Add CSS styles in `styles.css` for quiz cards, option selection effects, score badges, and result highlights.
-
-### Phase 5: Verification & Testing
-1. Create unit tests in `src/test/java/com/example/study_buddy/QuizServiceTest.java`:
-   - Test JSON deserialization of Call 1 quiz schemas.
-   - Test local MCQ score evaluation ($O(1)$ verification).
-   - Test JSON deserialization of Call 2 grading responses.
-2. Verify application builds cleanly with `mvn clean test`.
-3. Update `checklist.md` to mark:
-   - **Requirement 8 (Networking & Remote JSON Parsing)**: 🟢 **Complete**
-   - **Requirement 3 (JavaFX UI Design - BorderPane)**: 🟢 **Complete**
-
----
-
-## 6. Approval Gate
-Per repository rules (`AGENTS.md`), code modifications will begin only after your explicit review and confirmation.
+1. **Automated Unit Tests**:
+   - Run `$env:JAVA_HOME = "C:\Users\User\.jdks\ms-21.0.12"; .\mvnw.cmd test` ensuring all tests pass.
+2. **Course Gallery Test**:
+   - Click `+ Add Course`, enter `CSE 2100` and `Object-Oriented Programming`.
+   - Verify card displays strictly **Course Code** and **Course Title**.
+3. **Card Click & Transition Test**:
+   - Click course card; verify smooth transition to detailed Course Progress Workspace.
+   - Verify `◀ Back to Courses` returns to the gallery.
+4. **Syllabus PDF Extraction & Hierarchy Test**:
+   - Upload sample PDF; verify AI parses chapters and topics into the checklist.
+5. **Interactive Checkbox Test**:
+   - Check and uncheck topics; verify immediate SQLite persistence and chart updates.
+6. **Marks Tracker Test**:
+   - Add CT 1 (18/20) and Lab Test (28/30); verify summary displays correctly.
+7. **AI Term Exam Forecast Test**:
+   - Set exam date; verify AI advice generates based on remaining unstudied topics.

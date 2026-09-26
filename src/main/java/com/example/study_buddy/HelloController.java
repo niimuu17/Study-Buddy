@@ -8,6 +8,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.chart.PieChart;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
 import javafx.animation.Animation;
@@ -18,11 +19,14 @@ import javafx.animation.Transition;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 import javafx.util.Duration;
+import javafx.util.Pair;
+import java.util.concurrent.CompletableFuture;
 
 import java.awt.Desktop;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.time.temporal.ChronoUnit;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.time.DayOfWeek;
@@ -75,6 +79,7 @@ public class HelloController {
     @FXML private Button navRoutineBtn;
     @FXML private Button navCalendarBtn;
     @FXML private Button navQuizBtn;
+    @FXML private Button navProgressBtn;
 
     // AI Quiz Components (Built using BorderPane for Teacher Requirement #3)
     @FXML private BorderPane quizView;
@@ -101,6 +106,28 @@ public class HelloController {
     @FXML private HBox quizBottomBar;
     @FXML private Label quizProgressLabel;
     @FXML private Button quizSubmitBtn;
+
+    // Academic Progress Components
+    @FXML private VBox progressView;
+    @FXML private VBox progressCoursesGalleryPane;
+    @FXML private FlowPane coursesGrid;
+    @FXML private Button addCourseBtn;
+    @FXML private VBox progressDetailPane;
+    @FXML private Label progressCourseTitleHeader;
+    @FXML private Label progressCourseSubtitle;
+    @FXML private Button uploadSyllabusBtn;
+    @FXML private Button setTermExamBtn;
+    @FXML private Button addMarksBtn;
+    @FXML private Label syllabusProgressSummaryLabel;
+    @FXML private ProgressBar syllabusProgressBar;
+    @FXML private VBox syllabusChaptersContainer;
+    @FXML private Label marksAverageLabel;
+    @FXML private VBox marksListContainer;
+    @FXML private PieChart syllabusPieChart;
+    @FXML private Label examCountdownBadge;
+    @FXML private Label examForecastText;
+
+    private Course currentSelectedCourse = null;
 
     private QuizSession currentQuizSession = null;
     private File uploadedQuizFile = null;
@@ -240,6 +267,10 @@ public class HelloController {
             quizView.setVisible(false);
             quizView.setManaged(false);
         }
+        if (progressView != null) {
+            progressView.setVisible(false);
+            progressView.setManaged(false);
+        }
         if (rightToggleBtn != null) {
             rightToggleBtn.setVisible(true);
             rightToggleBtn.setManaged(true);
@@ -276,6 +307,10 @@ public class HelloController {
             quizView.setVisible(false);
             quizView.setManaged(false);
         }
+        if (progressView != null) {
+            progressView.setVisible(false);
+            progressView.setManaged(false);
+        }
         if (rightToggleBtn != null) {
             rightToggleBtn.setVisible(false);
             rightToggleBtn.setManaged(false);
@@ -311,6 +346,10 @@ public class HelloController {
             quizView.setVisible(false);
             quizView.setManaged(false);
         }
+        if (progressView != null) {
+            progressView.setVisible(false);
+            progressView.setManaged(false);
+        }
         if (calendarView != null) {
             calendarView.setVisible(true);
             calendarView.setManaged(true);
@@ -338,6 +377,9 @@ public class HelloController {
         }
         if (navQuizBtn != null) {
             navQuizBtn.getStyleClass().remove("nav-item-active");
+        }
+        if (navProgressBtn != null) {
+            navProgressBtn.getStyleClass().remove("nav-item-active");
         }
         if (activeButton != null && !activeButton.getStyleClass().contains("nav-item-active")) {
             activeButton.getStyleClass().add("nav-item-active");
@@ -399,6 +441,10 @@ public class HelloController {
             quizView.setVisible(true);
             quizView.setManaged(true);
         }
+        if (progressView != null) {
+            progressView.setVisible(false);
+            progressView.setManaged(false);
+        }
         if (rightToggleBtn != null) {
             rightToggleBtn.setVisible(false);
             rightToggleBtn.setManaged(false);
@@ -416,6 +462,495 @@ public class HelloController {
     @FXML
     public void handleBackFromQuiz() {
         handleOpenMainMenu();
+    }
+
+    // ==========================================
+    // Academic Progress Tracker Workflows
+    // ==========================================
+
+    @FXML
+    public void handleOpenProgress() {
+        if (appTopBar != null) {
+            appTopBar.setVisible(true);
+            appTopBar.setManaged(true);
+        }
+        if (mainMenuView != null) {
+            mainMenuView.setVisible(false);
+            mainMenuView.setManaged(false);
+        }
+        if (routineView != null) {
+            routineView.setVisible(false);
+            routineView.setManaged(false);
+        }
+        if (calendarView != null) {
+            calendarView.setVisible(false);
+            calendarView.setManaged(false);
+        }
+        if (notebookWorkspaceView != null) {
+            notebookWorkspaceView.setVisible(false);
+            notebookWorkspaceView.setManaged(false);
+        }
+        if (quizView != null) {
+            quizView.setVisible(false);
+            quizView.setManaged(false);
+        }
+        if (progressView != null) {
+            progressView.setVisible(true);
+            progressView.setManaged(true);
+        }
+        if (rightToggleBtn != null) {
+            rightToggleBtn.setVisible(false);
+            rightToggleBtn.setManaged(false);
+        }
+        if (isRightSidebarOpen) {
+            handleToggleRight();
+        }
+        updateNavActiveState(navProgressBtn);
+        handleBackToCoursesGallery();
+    }
+
+    @FXML
+    public void handleBackToCoursesGallery() {
+        if (progressCoursesGalleryPane != null) {
+            progressCoursesGalleryPane.setVisible(true);
+            progressCoursesGalleryPane.setManaged(true);
+        }
+        if (progressDetailPane != null) {
+            progressDetailPane.setVisible(false);
+            progressDetailPane.setManaged(false);
+        }
+        currentSelectedCourse = null;
+        loadAndRenderCourses();
+    }
+
+    private void loadAndRenderCourses() {
+        if (coursesGrid == null) return;
+        coursesGrid.getChildren().clear();
+        int userId = (currentUser != null) ? currentUser.getId() : 1;
+        List<Course> courses = DatabaseHelper.getCourses(userId);
+
+        for (Course c : courses) {
+            VBox card = new VBox(8);
+            card.getStyleClass().add("course-card");
+            card.setAlignment(Pos.TOP_LEFT);
+
+            HBox topRow = new HBox(8);
+            topRow.setAlignment(Pos.CENTER_LEFT);
+            Label codeLabel = new Label(c.getCourseCode());
+            codeLabel.getStyleClass().add("course-code-badge");
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+            topRow.getChildren().addAll(codeLabel, spacer);
+
+            Label titleLabel = new Label(c.getCourseTitle());
+            titleLabel.getStyleClass().add("course-title-text");
+            titleLabel.setWrapText(true);
+            VBox.setVgrow(titleLabel, Priority.ALWAYS);
+
+            card.getChildren().addAll(topRow, titleLabel);
+
+            card.setOnMouseClicked(e -> openCourseProgressDetail(c));
+
+            // Right-click context menu to delete course
+            ContextMenu cm = new ContextMenu();
+            MenuItem delItem = new MenuItem("🗑️ Delete Course");
+            delItem.setOnAction(ev -> {
+                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                        "Delete course '" + c.getCourseCode() + "' and its syllabus data?",
+                        ButtonType.YES, ButtonType.NO);
+                confirm.showAndWait().ifPresent(res -> {
+                    if (res == ButtonType.YES) {
+                        DatabaseHelper.deleteCourse(c.getId());
+                        loadAndRenderCourses();
+                    }
+                });
+            });
+            cm.getItems().add(delItem);
+            card.setOnContextMenuRequested(ev -> cm.show(card, ev.getScreenX(), ev.getScreenY()));
+
+            coursesGrid.getChildren().add(card);
+        }
+
+        if (courses.isEmpty()) {
+            VBox emptyPrompt = new VBox(12);
+            emptyPrompt.setAlignment(Pos.CENTER);
+            emptyPrompt.setStyle("-fx-padding: 40px; -fx-background-color: #f8fafc; -fx-background-radius: 12px; -fx-border-color: #e2e8f0; -fx-border-radius: 12px;");
+            Label emptyLbl = new Label("No courses added yet");
+            emptyLbl.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #64748b;");
+            Label emptySub = new Label("Click '+ Add Course' above to add your first academic course.");
+            emptySub.setStyle("-fx-font-size: 12px; -fx-text-fill: #94a3b8;");
+            emptyPrompt.getChildren().addAll(emptyLbl, emptySub);
+            coursesGrid.getChildren().add(emptyPrompt);
+        }
+    }
+
+    private void openCourseProgressDetail(Course course) {
+        if (course == null) return;
+        this.currentSelectedCourse = course;
+        if (progressCoursesGalleryPane != null) {
+            progressCoursesGalleryPane.setVisible(false);
+            progressCoursesGalleryPane.setManaged(false);
+        }
+        if (progressDetailPane != null) {
+            progressDetailPane.setVisible(true);
+            progressDetailPane.setManaged(true);
+        }
+        if (progressCourseTitleHeader != null) {
+            progressCourseTitleHeader.setText(course.getCourseCode() + " - " + course.getCourseTitle());
+        }
+        loadCourseSyllabusAndStats(course.getId());
+        loadCourseMarks(course.getId());
+        loadTermExamAndForecast(course);
+    }
+
+    private void loadCourseSyllabusAndStats(int courseId) {
+        if (syllabusChaptersContainer == null) return;
+        syllabusChaptersContainer.getChildren().clear();
+
+        List<SyllabusChapter> chapters = DatabaseHelper.getSyllabusChapters(courseId);
+        int totalTopics = 0;
+        int completedTopics = 0;
+
+        for (SyllabusChapter ch : chapters) {
+            VBox chapterCard = new VBox(8);
+            chapterCard.getStyleClass().add("chapter-card");
+
+            HBox header = new HBox(8);
+            header.setAlignment(Pos.CENTER_LEFT);
+            Label chapNum = new Label("Chapter " + ch.getChapterNumber() + ": " + ch.getTitle());
+            chapNum.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #1e293b;");
+            Region sp = new Region();
+            HBox.setHgrow(sp, Priority.ALWAYS);
+            Label countBadge = new Label(ch.getCompletedTopicsCount() + "/" + ch.getTotalTopicsCount());
+            countBadge.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #4f46e5; -fx-background-color: #e0e7ff; -fx-padding: 2px 7px; -fx-background-radius: 6px;");
+            header.getChildren().addAll(chapNum, sp, countBadge);
+
+            VBox topicsList = new VBox(4);
+            for (SyllabusTopic topic : ch.getTopics()) {
+                totalTopics++;
+                if (topic.isCompleted()) completedTopics++;
+
+                HBox topicRow = new HBox(10);
+                topicRow.setAlignment(Pos.CENTER_LEFT);
+                topicRow.getStyleClass().add("topic-row");
+
+                CheckBox cb = new CheckBox();
+                cb.setSelected(topic.isCompleted());
+                Label topicLbl = new Label(topic.getTitle());
+                topicLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: " + (topic.isCompleted() ? "#64748b; -fx-font-style: italic;" : "#1e293b;"));
+
+                cb.setOnAction(e -> {
+                    boolean isChecked = cb.isSelected();
+                    DatabaseHelper.setTopicCompleted(topic.getId(), isChecked);
+                    topic.setCompleted(isChecked);
+                    loadCourseSyllabusAndStats(courseId);
+                    if (currentSelectedCourse != null) {
+                        loadTermExamAndForecast(currentSelectedCourse);
+                    }
+                });
+
+                topicRow.getChildren().addAll(cb, topicLbl);
+                topicsList.getChildren().add(topicRow);
+            }
+
+            chapterCard.getChildren().addAll(header, topicsList);
+            syllabusChaptersContainer.getChildren().add(chapterCard);
+        }
+
+        double pct = (totalTopics > 0) ? ((double) completedTopics / totalTopics) : 0.0;
+        if (syllabusProgressBar != null) {
+            syllabusProgressBar.setProgress(pct);
+        }
+        if (syllabusProgressSummaryLabel != null) {
+            syllabusProgressSummaryLabel.setText(completedTopics + "/" + totalTopics + " Topics (" + (int)(pct * 100) + "%)");
+        }
+
+        // Update PieChart
+        if (syllabusPieChart != null) {
+            syllabusPieChart.getData().clear();
+            if (totalTopics > 0) {
+                PieChart.Data completedData = new PieChart.Data("Done (" + completedTopics + ")", completedTopics);
+                PieChart.Data remainingData = new PieChart.Data("Remaining (" + (totalTopics - completedTopics) + ")", (totalTopics - completedTopics));
+                syllabusPieChart.getData().addAll(completedData, remainingData);
+            }
+        }
+    }
+
+    private void loadCourseMarks(int courseId) {
+        if (marksListContainer == null) return;
+        marksListContainer.getChildren().clear();
+
+        List<AcademicMark> marks = DatabaseHelper.getAcademicMarks(courseId);
+        double totalPct = 0;
+        int count = 0;
+
+        for (AcademicMark m : marks) {
+            HBox chip = new HBox(8);
+            chip.setAlignment(Pos.CENTER_LEFT);
+            chip.getStyleClass().add("mark-chip");
+
+            Label typeBadge = new Label(m.getAssessmentType());
+            typeBadge.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-background-color: #e0e7ff; -fx-text-fill: #4338ca; -fx-padding: 2px 6px; -fx-background-radius: 4px;");
+
+            Label nameLbl = new Label(m.getAssessmentName());
+            nameLbl.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #1e293b;");
+
+            Region sp = new Region();
+            HBox.setHgrow(sp, Priority.ALWAYS);
+
+            Label scoreLbl = new Label(String.format("%.1f/%.1f (%.0f%%)", m.getObtainedMarks(), m.getTotalMarks(), m.getPercentage()));
+            scoreLbl.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #059669;");
+
+            Button delBtn = new Button("✕");
+            delBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #94a3b8; -fx-font-size: 10px; -fx-cursor: hand; -fx-padding: 0 4px;");
+            delBtn.setOnAction(e -> {
+                DatabaseHelper.deleteAcademicMark(m.getId());
+                loadCourseMarks(courseId);
+            });
+
+            chip.getChildren().addAll(typeBadge, nameLbl, sp, scoreLbl, delBtn);
+            marksListContainer.getChildren().add(chip);
+
+            totalPct += m.getPercentage();
+            count++;
+        }
+
+        if (marksAverageLabel != null) {
+            if (count > 0) {
+                marksAverageLabel.setText(String.format("Avg: %.1f%%", (totalPct / count)));
+            } else {
+                marksAverageLabel.setText("Avg: --%");
+            }
+        }
+
+        if (marks.isEmpty()) {
+            Label noMarks = new Label("No marks added. Click '➕ Add Marks' above.");
+            noMarks.setStyle("-fx-font-size: 11px; -fx-text-fill: #94a3b8; -fx-font-style: italic;");
+            marksListContainer.getChildren().add(noMarks);
+        }
+    }
+
+    private void loadTermExamAndForecast(Course course) {
+        if (course == null) return;
+        String examDateStr = DatabaseHelper.getTermExamDate(course.getId());
+        if (examDateStr == null || examDateStr.trim().isEmpty()) {
+            if (examCountdownBadge != null) examCountdownBadge.setText("No Exam Set");
+            if (examForecastText != null) examForecastText.setText("Set a Term Exam date above to generate your personalized AI study pace forecast.");
+            return;
+        }
+
+        try {
+            LocalDate examDate = LocalDate.parse(examDateStr);
+            long days = ChronoUnit.DAYS.between(LocalDate.now(), examDate);
+            if (examCountdownBadge != null) {
+                if (days < 0) {
+                    examCountdownBadge.setText("Exam Passed");
+                } else if (days == 0) {
+                    examCountdownBadge.setText("Exam Today!");
+                } else {
+                    examCountdownBadge.setText(days + " Days Left");
+                }
+            }
+
+            List<SyllabusChapter> chapters = DatabaseHelper.getSyllabusChapters(course.getId());
+            int total = 0;
+            int done = 0;
+            List<String> remaining = new ArrayList<>();
+            for (SyllabusChapter ch : chapters) {
+                for (SyllabusTopic t : ch.getTopics()) {
+                    total++;
+                    if (t.isCompleted()) done++;
+                    else remaining.add(t.getTitle());
+                }
+            }
+
+            if (total == 0) {
+                if (examForecastText != null) examForecastText.setText("Upload your syllabus PDF above so AI can calculate your preparation forecast.");
+                return;
+            }
+
+            if (days > 0 && geminiApiService != null) {
+                if (examForecastText != null) examForecastText.setText("🤖 Calculating AI study forecast...");
+                final int fTotal = total;
+                final int fDone = done;
+                final long fDays = days;
+                geminiApiService.generateExamForecastAsync(course.getCourseTitle(), fTotal, fDone, remaining, fDays)
+                        .thenAccept(advice -> Platform.runLater(() -> {
+                            if (examForecastText != null) {
+                                examForecastText.setText(advice);
+                            }
+                        }))
+                        .exceptionally(ex -> {
+                            Platform.runLater(() -> {
+                                if (examForecastText != null) {
+                                    examForecastText.setText("Study ~" + String.format("%.1f", (double)(fTotal - fDone) / Math.max(1, fDays / 7.0)) + " topics per week to finish before your exam.");
+                                }
+                            });
+                            return null;
+                        });
+            }
+        } catch (Exception e) {
+            if (examCountdownBadge != null) examCountdownBadge.setText(examDateStr);
+        }
+    }
+
+    @FXML
+    public void handleAddNewCourse() {
+        Dialog<Pair<String, String>> dialog = new Dialog<>();
+        dialog.setTitle("Add Academic Course");
+        dialog.setHeaderText("Enter Course Code and Course Title");
+
+        ButtonType addBtnType = new ButtonType("Add Course", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(addBtnType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20, 40, 10, 10));
+
+        TextField codeField = new TextField();
+        codeField.setPromptText("e.g. CSE 2100");
+        TextField titleField = new TextField();
+        titleField.setPromptText("e.g. Object-Oriented Programming");
+
+        grid.add(new Label("Course Code:"), 0, 0);
+        grid.add(codeField, 1, 0);
+        grid.add(new Label("Course Title:"), 0, 1);
+        grid.add(titleField, 1, 1);
+
+        dialog.getDialogPane().setContent(grid);
+        Platform.runLater(codeField::requestFocus);
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == addBtnType) {
+                return new Pair<>(codeField.getText().trim(), titleField.getText().trim());
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(pair -> {
+            if (!pair.getKey().isEmpty() && !pair.getValue().isEmpty()) {
+                int uid = (currentUser != null) ? currentUser.getId() : 1;
+                DatabaseHelper.createCourse(uid, pair.getKey(), pair.getValue());
+                loadAndRenderCourses();
+            }
+        });
+    }
+
+    @FXML
+    public void handleUploadSyllabus() {
+        if (currentSelectedCourse == null) return;
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Select Course Syllabus (PDF or Text)");
+        fc.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Syllabus Files (*.pdf, *.txt, *.md)", "*.pdf", "*.txt", "*.md"),
+                new FileChooser.ExtensionFilter("PDF Documents (*.pdf)", "*.pdf"),
+                new FileChooser.ExtensionFilter("Text Files (*.txt, *.md)", "*.txt", "*.md")
+        );
+        Stage stage = (progressView != null && progressView.getScene() != null)
+                ? (Stage) progressView.getScene().getWindow() : null;
+        File file = fc.showOpenDialog(stage);
+        if (file == null) return;
+
+        if (syllabusProgressSummaryLabel != null) {
+            syllabusProgressSummaryLabel.setText("Extracting & parsing syllabus with AI...");
+        }
+
+        CompletableFuture.supplyAsync(() -> {
+            try {
+                return QuizSourceHelper.readFileContent(file);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to read file: " + e.getMessage(), e);
+            }
+        }).thenCompose(text -> {
+            return geminiApiService.parseSyllabusHierarchyAsync(text);
+        }).thenAccept(chapters -> Platform.runLater(() -> {
+            DatabaseHelper.saveSyllabusChapters(currentSelectedCourse.getId(), chapters);
+            loadCourseSyllabusAndStats(currentSelectedCourse.getId());
+            loadTermExamAndForecast(currentSelectedCourse);
+            Alert alert = new Alert(Alert.AlertType.INFORMATION, "Successfully extracted " + chapters.size() + " chapters and topics for " + currentSelectedCourse.getCourseCode() + "!");
+            alert.showAndWait();
+        })).exceptionally(ex -> {
+            Platform.runLater(() -> {
+                loadCourseSyllabusAndStats(currentSelectedCourse.getId());
+                Alert alert = new Alert(Alert.AlertType.ERROR, "Syllabus Extraction Error: " + ex.getMessage());
+                alert.showAndWait();
+            });
+            return null;
+        });
+    }
+
+    @FXML
+    public void handleSetTermExamDate() {
+        if (currentSelectedCourse == null) return;
+        Dialog<LocalDate> dialog = new Dialog<>();
+        dialog.setTitle("Set Term Final Exam Date");
+        dialog.setHeaderText("Select target exam date for " + currentSelectedCourse.getCourseCode());
+
+        ButtonType saveBtn = new ButtonType("Save Date", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
+
+        DatePicker dp = new DatePicker(LocalDate.now().plusDays(30));
+        VBox box = new VBox(10, new Label("Exam Date:"), dp);
+        box.setPadding(new Insets(15));
+        dialog.getDialogPane().setContent(box);
+
+        dialog.setResultConverter(btn -> (btn == saveBtn) ? dp.getValue() : null);
+        dialog.showAndWait().ifPresent(date -> {
+            DatabaseHelper.setTermExamDate(currentSelectedCourse.getId(), date.toString());
+            loadTermExamAndForecast(currentSelectedCourse);
+        });
+    }
+
+    @FXML
+    public void handleAddMarksDialog() {
+        if (currentSelectedCourse == null) return;
+        Dialog<AcademicMark> dialog = new Dialog<>();
+        dialog.setTitle("Add Assessment Marks");
+        dialog.setHeaderText("Enter assessment marks for " + currentSelectedCourse.getCourseCode());
+
+        ButtonType saveBtn = new ButtonType("Save Mark", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(15));
+
+        ComboBox<String> typeCombo = new ComboBox<>();
+        typeCombo.getItems().addAll("CT", "CT Assignment", "Lab Test", "Lab Quiz", "Midterm");
+        typeCombo.setValue("CT");
+
+        TextField nameField = new TextField("CT 1");
+        TextField obtainedField = new TextField("18.0");
+        TextField totalField = new TextField("20.0");
+
+        grid.add(new Label("Assessment Type:"), 0, 0);
+        grid.add(typeCombo, 1, 0);
+        grid.add(new Label("Assessment Name:"), 0, 1);
+        grid.add(nameField, 1, 1);
+        grid.add(new Label("Obtained Score:"), 0, 2);
+        grid.add(obtainedField, 1, 2);
+        grid.add(new Label("Total Marks:"), 0, 3);
+        grid.add(totalField, 1, 3);
+
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.setResultConverter(btn -> {
+            if (btn == saveBtn) {
+                try {
+                    double obt = Double.parseDouble(obtainedField.getText().trim());
+                    double tot = Double.parseDouble(totalField.getText().trim());
+                    return new AcademicMark(0, currentSelectedCourse.getId(), typeCombo.getValue(), nameField.getText().trim(), obt, tot, LocalDate.now().toString(), null);
+                } catch (Exception ignored) {}
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(mark -> {
+            DatabaseHelper.addAcademicMark(mark.getCourseId(), mark.getAssessmentType(), mark.getAssessmentName(), mark.getObtainedMarks(), mark.getTotalMarks(), mark.getExamDate());
+            loadCourseMarks(currentSelectedCourse.getId());
+        });
     }
 
     /**

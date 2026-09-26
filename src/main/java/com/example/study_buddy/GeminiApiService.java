@@ -28,9 +28,10 @@ public class GeminiApiService {
     private static final String BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
     private static final String[] CANDIDATE_MODELS = {
             "gemini-3.8-flash",
-            "gemini-flash-latest",
-            "gemini-2.5-flash",
-            "gemini-1.5-flash"
+            "gemini-3.6-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-flash-lite-latest",
+            "gemini-flash-latest"
     };
 
     private final HttpClient httpClient;
@@ -271,8 +272,9 @@ public class GeminiApiService {
                 lastErrorMsg += response.body();
             }
 
-            // If error is not a 404 model not found (e.g. invalid key 403, quota exceeded 429), don't retry other models
-            if (response.statusCode() != 404) {
+            // If error is a transient rate limit (429), high demand spike (503), or deprecated model (404),
+            // automatically fall back to the next candidate model in the pool
+            if (response.statusCode() != 404 && response.statusCode() != 429 && response.statusCode() != 503) {
                 throw new IOException(lastErrorMsg);
             }
         }
@@ -380,5 +382,138 @@ public class GeminiApiService {
                 }
             }
         }
+    }
+
+    /**
+     * Parses an uploaded syllabus (PDF text or raw outline) into structured chapters and topics.
+     */
+    public CompletableFuture<List<SyllabusChapter>> parseSyllabusHierarchyAsync(String syllabusText) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return parseSyllabusHierarchy(syllabusText);
+            } catch (Exception e) {
+                throw new RuntimeException(e.getMessage(), e);
+            }
+        });
+    }
+
+    public List<SyllabusChapter> parseSyllabusHierarchy(String syllabusText) throws IOException, InterruptedException {
+        String apiKey = ApiKeyManager.getApiKey();
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            throw new IOException("Gemini API key is not configured. Please set your key in Settings.");
+        }
+
+        String prompt = "You are an expert academic curriculum parser. Given the following syllabus content, extract the hierarchical chapters and their corresponding study topics.\n"
+                + "Return ONLY a valid JSON object matching this exact schema:\n"
+                + "{\n"
+                + "  \"chapters\": [\n"
+                + "    {\n"
+                + "      \"chapterNumber\": 1,\n"
+                + "      \"title\": \"Chapter Title\",\n"
+                + "      \"topics\": [\"Topic 1\", \"Topic 2\", \"Topic 3\"]\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}\n\n"
+                + "Guidelines:\n"
+                + "1. Number chapters sequentially starting from 1.\n"
+                + "2. Keep chapter titles and topic names concise, informative, and clean.\n"
+                + "3. Extract all distinct core concepts, lectures, or sections into individual topics.\n\n"
+                + "Syllabus Content:\n"
+                + (syllabusText.length() > 25000 ? syllabusText.substring(0, 25000) : syllabusText);
+
+        String jsonBody = buildGeminiRequestBody(prompt);
+        String rawResponse = sendGeminiRequest(apiKey, jsonBody);
+        String responseContent = extractContentText(rawResponse);
+
+        List<SyllabusChapter> chapters = new ArrayList<>();
+        JsonNode root = objectMapper.readTree(responseContent);
+        JsonNode chapArray = root.path("chapters");
+        if (chapArray.isArray()) {
+            for (JsonNode chNode : chapArray) {
+                int num = chNode.path("chapterNumber").asInt(chapters.size() + 1);
+                String title = chNode.path("title").asText("Chapter " + num);
+                SyllabusChapter chapter = new SyllabusChapter(num, title);
+
+                List<SyllabusTopic> topics = new ArrayList<>();
+                JsonNode topArray = chNode.path("topics");
+                if (topArray.isArray()) {
+                    for (JsonNode tNode : topArray) {
+                        String topTitle = tNode.asText("").trim();
+                        if (!topTitle.isEmpty()) {
+                            topics.add(new SyllabusTopic(topTitle));
+                        }
+                    }
+                }
+                chapter.setTopics(topics);
+                chapters.add(chapter);
+            }
+        }
+
+        if (chapters.isEmpty()) {
+            // Fallback default chapter if parsing returned no items
+            SyllabusChapter defaultChapter = new SyllabusChapter(1, "General Syllabus");
+            defaultChapter.getTopics().add(new SyllabusTopic("Core Syllabus Content"));
+            chapters.add(defaultChapter);
+        }
+
+        return chapters;
+    }
+
+    /**
+     * Generates a personalized strategic forecast and study recommendation for the upcoming Term Final Exam.
+     */
+    public CompletableFuture<String> generateExamForecastAsync(
+            String courseName,
+            int totalTopics,
+            int completedTopics,
+            List<String> remainingTopics,
+            long daysRemaining) {
+
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return generateExamForecast(courseName, totalTopics, completedTopics, remainingTopics, daysRemaining);
+            } catch (Exception e) {
+                return "Keep up consistent daily study to cover the remaining topics before your Term Exam.";
+            }
+        });
+    }
+
+    public String generateExamForecast(
+            String courseName,
+            int totalTopics,
+            int completedTopics,
+            List<String> remainingTopics,
+            long daysRemaining) throws IOException, InterruptedException {
+
+        String apiKey = ApiKeyManager.getApiKey();
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            return "Configure your Gemini API key in Settings to receive personalized AI exam forecasts.";
+        }
+
+        String remainingStr = (remainingTopics != null && !remainingTopics.isEmpty())
+                ? String.join(", ", remainingTopics.subList(0, Math.min(10, remainingTopics.size())))
+                : "None";
+
+        String prompt = "You are an encouraging academic study coach. Analyze the student's progress and provide a 2-3 sentence personalized strategic plan for their upcoming Term Final Exam.\n"
+                + "Course: " + courseName + "\n"
+                + "Days Remaining until Exam: " + daysRemaining + " days\n"
+                + "Total Topics: " + totalTopics + "\n"
+                + "Completed Topics: " + completedTopics + " (" + (totalTopics > 0 ? (completedTopics * 100 / totalTopics) : 0) + "%)\n"
+                + "Unstudied Remaining Topics: " + remainingStr + "\n\n"
+                + "Provide realistic topic completion pace (e.g. 1 topic every X days) and recommend high-priority areas to focus on. Keep response under 50 words. Do not use markdown wrappers.";
+
+        ObjectNode root = objectMapper.createObjectNode();
+        ArrayNode contents = root.putArray("contents");
+        ObjectNode content = contents.addObject();
+        ArrayNode parts = content.putArray("parts");
+        ObjectNode part = parts.addObject();
+        part.put("text", prompt);
+
+        ObjectNode genConfig = root.putObject("generationConfig");
+        genConfig.put("temperature", 0.4);
+
+        String jsonBody = objectMapper.writeValueAsString(root);
+        String rawResponse = sendGeminiRequest(apiKey, jsonBody);
+        return extractContentText(rawResponse).trim();
     }
 }

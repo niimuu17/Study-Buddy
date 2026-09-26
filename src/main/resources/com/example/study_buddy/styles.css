@@ -628,6 +628,70 @@
     -fx-text-fill: #3730a3;
 }
 
+/* ==========================================================================
+   Academic Progress & Course Card Styles
+   ========================================================================== */
+
+.course-card {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 12px;
+    -fx-border-color: #e2e8f0;
+    -fx-border-radius: 12px;
+    -fx-border-width: 1px;
+    -fx-padding: 20px;
+    -fx-pref-width: 280px;
+    -fx-min-width: 250px;
+    -fx-pref-height: 130px;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.03), 8, 0, 0, 2);
+}
+
+.course-card:hover {
+    -fx-border-color: #4f46e5;
+    -fx-background-color: #fdfdff;
+    -fx-effect: dropshadow(gaussian, rgba(79, 70, 229, 0.12), 12, 0, 0, 4);
+}
+
+.course-code-badge {
+    -fx-background-color: #e0e7ff;
+    -fx-text-fill: #4338ca;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 6px;
+    -fx-padding: 3px 8px;
+}
+
+.course-title-text {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1e293b;
+}
+
+.chapter-card {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 8px;
+    -fx-border-color: #e2e8f0;
+    -fx-border-radius: 8px;
+    -fx-padding: 12px;
+}
+
+.topic-row {
+    -fx-padding: 6px 8px;
+    -fx-background-radius: 6px;
+}
+
+.topic-row:hover {
+    -fx-background-color: #f1f5f9;
+}
+
+.mark-chip {
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #e2e8f0;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+    -fx-padding: 6px 10px;
+}
+
 
 
 

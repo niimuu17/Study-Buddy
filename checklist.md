@@ -116,7 +116,7 @@
 - **Status**: 🟢 **Complete**
 - **What We Have**:
   - Embedded SQLite database via `sqlite-jdbc` in `DatabaseHelper.java`.
-  - **9 Interconnected Tables**:
+  - **14 Interconnected Tables**:
     1. `users` (id, email, username, password_hash, created_at)
     2. `routine_slots` (`FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE`)
     3. `routine_activities` (`FOREIGN KEY(slot_id) REFERENCES routine_slots(id) ON DELETE CASCADE`)
@@ -126,6 +126,11 @@
     7. `pages` (`FOREIGN KEY(topic_id) REFERENCES topics(id) ON DELETE CASCADE`)
     8. `topic_files` (`FOREIGN KEY(topic_id) REFERENCES topics(id) ON DELETE CASCADE`)
     9. `calendar_tasks` (`FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE`)
+    10. `courses` (`FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE`)
+    11. `syllabus_chapters` (`FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE`)
+    12. `syllabus_topics` (`FOREIGN KEY(chapter_id) REFERENCES syllabus_chapters(id) ON DELETE CASCADE`)
+    13. `academic_marks` (`FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE`)
+    14. `term_exam_config` (`FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE`)
   - Referential integrity, foreign keys with cascade deletions, unique constraints, and parameterized prepared statements.
 - **What Is Left / Action Items**:
   - None! Ready to present and walkthrough during the video.
