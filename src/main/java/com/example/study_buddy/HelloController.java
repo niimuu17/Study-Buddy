@@ -24,7 +24,10 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import javax.imageio.ImageIO;
@@ -62,8 +65,14 @@ public class HelloController {
     // Center Workspace & Navigation
     @FXML private VBox mainMenuView;
     @FXML private ScrollPane routineView;
+    @FXML private VBox calendarView;
+    @FXML private ComboBox<String> calendarMonthSelect;
+    @FXML private ComboBox<Integer> calendarYearSelect;
+    @FXML private GridPane calendarDayHeaders;
+    @FXML private GridPane calendarGrid;
     @FXML private Button navHomeBtn;
     @FXML private Button navRoutineBtn;
+    @FXML private Button navCalendarBtn;
 
     // Notebooks (Main Menu)
     @FXML private Button myNotebooksBtn;
@@ -95,11 +104,13 @@ public class HelloController {
     @FXML private VBox rightSidebar;
     @FXML private Label taskCountBadge;
     @FXML private VBox tasksContainer;
-    @FXML private Button notebookTasksBtn;
 
     private boolean isLeftSidebarOpen = false;
     private boolean isRightSidebarOpen = false;
     private static final double SIDEBAR_WIDTH = 290.0;
+
+    private YearMonth currentCalendarMonth = YearMonth.now();
+    private boolean isUpdatingCalendarSelectors = false;
 
     private List<RoutineTaskItem> activeTasks = new ArrayList<>();
     private static class TaskCardNodes {
@@ -142,14 +153,15 @@ public class HelloController {
             rightSidebar.setMaxWidth(0);
         }
         if (leftToggleBtn != null) {
-            leftToggleBtn.setText("☰ Sidebar");
+            leftToggleBtn.setText("☰");
+            leftToggleBtn.setTooltip(new Tooltip("Toggle Sidebar"));
         }
         if (rightToggleBtn != null) {
-            rightToggleBtn.setText("📋 Tasks");
+            rightToggleBtn.setText("📋");
+            rightToggleBtn.setTooltip(new Tooltip("Toggle Tasks"));
         }
-        if (notebookTasksBtn != null) {
-            notebookTasksBtn.setText("📋 Tasks");
-        }
+        setupCalendarDayHeaders();
+        setupCalendarSelectors();
         if (notebookWorkspaceView != null) {
             notebookWorkspaceView.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
                 if (event.isControlDown() && event.getCode() == KeyCode.V) {
@@ -181,9 +193,17 @@ public class HelloController {
             routineView.setVisible(false);
             routineView.setManaged(false);
         }
+        if (calendarView != null) {
+            calendarView.setVisible(false);
+            calendarView.setManaged(false);
+        }
         if (notebookWorkspaceView != null) {
             notebookWorkspaceView.setVisible(false);
             notebookWorkspaceView.setManaged(false);
+        }
+        if (rightToggleBtn != null) {
+            rightToggleBtn.setVisible(true);
+            rightToggleBtn.setManaged(true);
         }
         updateNavActiveState(navHomeBtn);
     }
@@ -205,11 +225,58 @@ public class HelloController {
             routineView.setVisible(true);
             routineView.setManaged(true);
         }
+        if (calendarView != null) {
+            calendarView.setVisible(false);
+            calendarView.setManaged(false);
+        }
         if (notebookWorkspaceView != null) {
             notebookWorkspaceView.setVisible(false);
             notebookWorkspaceView.setManaged(false);
         }
+        if (rightToggleBtn != null) {
+            rightToggleBtn.setVisible(false);
+            rightToggleBtn.setManaged(false);
+        }
+        if (isRightSidebarOpen) {
+            handleToggleRight();
+        }
         updateNavActiveState(navRoutineBtn);
+    }
+
+    /**
+     * Switches center workspace to the Google Calendar-style interactive Calendar.
+     */
+    @FXML
+    public void handleOpenCalendar() {
+        if (appTopBar != null) {
+            appTopBar.setVisible(true);
+            appTopBar.setManaged(true);
+        }
+        if (mainMenuView != null) {
+            mainMenuView.setVisible(false);
+            mainMenuView.setManaged(false);
+        }
+        if (routineView != null) {
+            routineView.setVisible(false);
+            routineView.setManaged(false);
+        }
+        if (notebookWorkspaceView != null) {
+            notebookWorkspaceView.setVisible(false);
+            notebookWorkspaceView.setManaged(false);
+        }
+        if (calendarView != null) {
+            calendarView.setVisible(true);
+            calendarView.setManaged(true);
+        }
+        if (rightToggleBtn != null) {
+            rightToggleBtn.setVisible(false);
+            rightToggleBtn.setManaged(false);
+        }
+        if (isRightSidebarOpen) {
+            handleToggleRight();
+        }
+        updateNavActiveState(navCalendarBtn);
+        renderCalendar();
     }
 
     private void updateNavActiveState(Button activeButton) {
@@ -218,6 +285,9 @@ public class HelloController {
         }
         if (navRoutineBtn != null) {
             navRoutineBtn.getStyleClass().remove("nav-item-active");
+        }
+        if (navCalendarBtn != null) {
+            navCalendarBtn.getStyleClass().remove("nav-item-active");
         }
         if (activeButton != null && !activeButton.getStyleClass().contains("nav-item-active")) {
             activeButton.getStyleClass().add("nav-item-active");
@@ -291,9 +361,9 @@ public class HelloController {
      */
     private VBox createNotebookCard(Notebook notebook) {
         VBox card = new VBox();
-        card.setPrefSize(280, 160);
-        card.setMinSize(280, 160);
-        card.setMaxSize(280, 160);
+        card.setPrefSize(224, 128);
+        card.setMinSize(224, 128);
+        card.setMaxSize(224, 128);
         card.getStyleClass().add("notebook-card");
 
         String themeColor = (notebook.getColorHex() != null && !notebook.getColorHex().isEmpty())
@@ -301,29 +371,29 @@ public class HelloController {
 
         // Top Accent Stripe
         Region accentStripe = new Region();
-        accentStripe.setPrefHeight(6);
-        accentStripe.setMinHeight(6);
+        accentStripe.setPrefHeight(5);
+        accentStripe.setMinHeight(5);
         accentStripe.setStyle("-fx-background-color: " + themeColor + "; -fx-background-radius: 10px 10px 0 0;");
 
         // Card Content Body
-        VBox body = new VBox(8);
-        body.setPadding(new Insets(12, 14, 12, 14));
+        VBox body = new VBox(6);
+        body.setPadding(new Insets(9, 11, 9, 11));
         VBox.setVgrow(body, Priority.ALWAYS);
 
         // Header Row: Color dot + Title + Context Menu (Edit, Delete)
-        HBox headerRow = new HBox(8);
+        HBox headerRow = new HBox(6);
         headerRow.setAlignment(Pos.CENTER_LEFT);
 
         Label dot = new Label("●");
-        dot.setStyle("-fx-font-size: 14px; -fx-text-fill: " + themeColor + ";");
+        dot.setStyle("-fx-font-size: 12px; -fx-text-fill: " + themeColor + ";");
 
         Label titleLabel = new Label(notebook.getTitle());
-        titleLabel.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #1e293b;");
+        titleLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #1e293b;");
         HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
         // Menu button (3 dots)
         Button optionsBtn = new Button("⋮");
-        optionsBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #64748b; -fx-font-size: 16px; -fx-font-weight: bold; -fx-padding: 0 4px; -fx-cursor: hand;");
+        optionsBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #64748b; -fx-font-size: 14px; -fx-font-weight: bold; -fx-padding: 0 3px; -fx-cursor: hand;");
 
         ContextMenu menu = new ContextMenu();
         MenuItem editItem = new MenuItem("✏ Edit Details");
@@ -356,14 +426,14 @@ public class HelloController {
         Label descLabel = new Label(notebook.getDescription() != null && !notebook.getDescription().isEmpty()
                 ? notebook.getDescription() : "No description provided.");
         descLabel.setWrapText(true);
-        descLabel.setMaxHeight(38);
-        descLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #64748b;");
+        descLabel.setMaxHeight(26);
+        descLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #64748b;");
 
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
 
         // Footer: Topics & Pages Counts + Open button
-        HBox footer = new HBox(8);
+        HBox footer = new HBox(6);
         footer.setAlignment(Pos.CENTER_LEFT);
 
         int topics = notebook.getTopicCount();
@@ -371,14 +441,14 @@ public class HelloController {
         String statsText = topics + (topics == 1 ? " Topic" : " Topics") + " · "
                          + pages + (pages == 1 ? " Page" : " Pages");
         Label statsLabel = new Label(statsText);
-        statsLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #4338ca; "
-                + "-fx-background-color: #eef2ff; -fx-padding: 3px 8px; -fx-background-radius: 4px;");
+        statsLabel.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #4338ca; "
+                + "-fx-background-color: #eef2ff; -fx-padding: 2px 6px; -fx-background-radius: 4px;");
 
         Region footerSpacer = new Region();
         HBox.setHgrow(footerSpacer, Priority.ALWAYS);
 
         Label openArrow = new Label("Open ➜");
-        openArrow.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #6366f1;");
+        openArrow.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #6366f1;");
 
         footer.getChildren().addAll(statsLabel, footerSpacer, openArrow);
 
@@ -424,9 +494,20 @@ public class HelloController {
             routineView.setVisible(false);
             routineView.setManaged(false);
         }
+        if (calendarView != null) {
+            calendarView.setVisible(false);
+            calendarView.setManaged(false);
+        }
         if (notebookWorkspaceView != null) {
             notebookWorkspaceView.setVisible(true);
             notebookWorkspaceView.setManaged(true);
+        }
+        if (rightToggleBtn != null) {
+            rightToggleBtn.setVisible(false);
+            rightToggleBtn.setManaged(false);
+        }
+        if (isRightSidebarOpen) {
+            handleToggleRight();
         }
 
         if (notebookBreadcrumbLabel != null) {
@@ -1368,6 +1449,7 @@ public class HelloController {
             buildRoutineGrid();
             loadNotebooks();
             loadTasksSidebar();
+            renderCalendar();
             handleOpenMainMenu();
         }
     }
@@ -1753,7 +1835,7 @@ public class HelloController {
         isLeftSidebarOpen = !isLeftSidebarOpen;
         animateSidebar(leftSidebar, isLeftSidebarOpen, SIDEBAR_WIDTH);
         if (leftToggleBtn != null) {
-            leftToggleBtn.setText(isLeftSidebarOpen ? "✕ Sidebar" : "☰ Sidebar");
+            leftToggleBtn.setText(isLeftSidebarOpen ? "✕" : "☰");
         }
     }
 
@@ -1771,39 +1853,49 @@ public class HelloController {
     }
 
     private void updateRightSidebarButtonLabels() {
-        int count = activeTasks.size();
-        String countSuffix = count > 0 ? " (" + count + ")" : "";
         if (rightToggleBtn != null) {
-            rightToggleBtn.setText(isRightSidebarOpen ? "✕ Tasks" : "📋 Tasks" + countSuffix);
-        }
-        if (notebookTasksBtn != null) {
-            notebookTasksBtn.setText(isRightSidebarOpen ? "✕ Tasks" : "📋 Tasks" + countSuffix);
+            rightToggleBtn.setText(isRightSidebarOpen ? "✕" : "📋");
         }
     }
 
     /**
-     * Loads all pending activities with deadlines across the user's routine,
+     * Loads all pending activities and calendar tasks with deadlines,
      * sorts them chronologically by nearest deadline, and populates the Tasks sidebar.
      */
     public void loadTasksSidebar() {
         if (currentUser == null) return;
 
         activeTasks.clear();
+
+        // 1. Load tasks from calendar_tasks
+        List<RoutineTaskItem> calendarTasks = DatabaseHelper.getUserCalendarTasks(currentUser.getId());
+        activeTasks.addAll(calendarTasks);
+
+        // 2. Load any legacy activities from routine slots
         Map<String, RoutineSlot> slots = DatabaseHelper.getAllRoutineSlots(currentUser.getId());
         for (RoutineSlot slot : slots.values()) {
             if (slot.getActivities() != null) {
                 for (SpecialActivity activity : slot.getActivities()) {
                     if (activity.getDeadlineInfo() != null && !activity.getDeadlineInfo().trim().isEmpty()) {
-                        activeTasks.add(new RoutineTaskItem(
-                                activity.getId(),
-                                slot.getId(),
-                                slot.getSubjectName(),
-                                slot.getTeacherCode(),
-                                slot.getDayOfWeek(),
-                                slot.getTimeSlot(),
-                                activity.getActivityType(),
-                                activity.getDeadlineInfo()
-                        ));
+                        boolean exists = false;
+                        for (RoutineTaskItem item : activeTasks) {
+                            if (item.getActivityId() == activity.getId()) {
+                                exists = true;
+                                break;
+                            }
+                        }
+                        if (!exists) {
+                            activeTasks.add(new RoutineTaskItem(
+                                    activity.getId(),
+                                    slot.getId(),
+                                    slot.getSubjectName(),
+                                    slot.getTeacherCode(),
+                                    slot.getDayOfWeek(),
+                                    slot.getTimeSlot(),
+                                    activity.getActivityType(),
+                                    activity.getDeadlineInfo()
+                            ));
+                        }
                     }
                 }
             }
@@ -1832,7 +1924,7 @@ public class HelloController {
             Label title = new Label("No Pending Tasks");
             title.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1e293b;");
 
-            Label sub = new Label("Activities with deadlines added to your routine will appear here with live countdowns.");
+            Label sub = new Label("Tasks and activities with deadlines added in your calendar will appear here with live countdowns.");
             sub.setWrapText(true);
             sub.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
             sub.setStyle("-fx-font-size: 11px; -fx-text-fill: #64748b;");
@@ -1850,10 +1942,11 @@ public class HelloController {
     }
 
     /**
-     * Builds an interactive minimalist card for a routine task:
+     * Builds an interactive minimalist card for a task:
      * - Row 1: [Subject] <task name> and subtle options button
      * - Row 2: Live ticking countdown ("Due in DD : HH : MM : SS" or "Ended")
      * - Left vertical accent stripe and dynamic color progression (green -> yellow -> red -> ash)
+     * - Left-click opens dedicated Task Details dialog (date, weekday, time, subject, status)
      * - Right-click context menu: <Details> and <Remove Task>
      */
     private HBox createTaskCard(RoutineTaskItem task) {
@@ -1901,24 +1994,36 @@ public class HelloController {
 
         taskCardMap.put(task, new TaskCardNodes(card, stripe, subjectLabel, countdownLabel));
 
-        // Right-Click Context Menu with <Details> and <Remove Task>
+        // Right-Click Context Menu with <Details>, <Edit Task>, and <Remove Task>
         ContextMenu menu = new ContextMenu();
         MenuItem detailsItem = new MenuItem("🔍 Details");
-        detailsItem.setOnAction(e -> showRoutineDetailsForTask(task, card.getScene().getWindow()));
+        detailsItem.setOnAction(e -> TaskDetailDialog.show(card.getScene().getWindow(), currentUser.getId(), task, () -> {
+            renderCalendar();
+            loadTasksSidebar();
+        }));
+
+        MenuItem editItem = new MenuItem("✏ Edit Task");
+        editItem.setOnAction(e -> CalendarTaskDialog.show(card.getScene().getWindow(), currentUser.getId(), task.getDeadlineDate(), task, () -> {
+            renderCalendar();
+            loadTasksSidebar();
+        }));
 
         MenuItem removeItem = new MenuItem("🗑 Remove Task");
         removeItem.setOnAction(e -> handleRemoveTask(task));
 
-        menu.getItems().addAll(detailsItem, new SeparatorMenuItem(), removeItem);
+        menu.getItems().addAll(detailsItem, editItem, new SeparatorMenuItem(), removeItem);
 
         // Right click on card
         card.setOnContextMenuRequested(e -> menu.show(card, e.getScreenX(), e.getScreenY()));
         optionsBtn.setOnAction(e -> menu.show(optionsBtn, javafx.geometry.Side.BOTTOM, 0, 0));
 
-        // Left click on card opens Details directly
+        // Left click on card opens Dedicated Task Details Dialog (no routine editor)
         card.setOnMouseClicked(e -> {
             if (e.getButton() == MouseButton.PRIMARY && !optionsBtn.isHover()) {
-                showRoutineDetailsForTask(task, card.getScene().getWindow());
+                TaskDetailDialog.show(card.getScene().getWindow(), currentUser.getId(), task, () -> {
+                    renderCalendar();
+                    loadTasksSidebar();
+                });
             }
         });
 
@@ -1942,34 +2047,21 @@ public class HelloController {
         }
     }
 
-    private void showRoutineDetailsForTask(RoutineTaskItem task, javafx.stage.Window window) {
-        if (task == null || currentUser == null) return;
-        Map<String, RoutineSlot> allSlots = DatabaseHelper.getAllRoutineSlots(currentUser.getId());
-        RoutineSlot slot = allSlots.get(task.getWeekday() + "|||" + task.getTimeSlot());
-        RoutineDetailDialog.show(
-                window,
-                currentUser.getId(),
-                task.getWeekday(),
-                task.getTimeSlot(),
-                slot,
-                () -> {
-                    buildRoutineGrid();
-                    loadTasksSidebar();
-                }
-        );
-    }
-
     private void handleRemoveTask(RoutineTaskItem task) {
         if (task == null || currentUser == null) return;
 
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
         confirm.setTitle("Remove Task");
         confirm.setHeaderText("Remove task \"" + task.getActivityType() + "\"?");
-        confirm.setContentText("Subject: " + task.getSubjectName() + "\nClass: " + task.getWeekday() + " (" + task.getTimeSlot() + ")\nDeadline: " + task.getFormattedTarget());
+        String details = "Subject: " + task.getSubjectName()
+                + "\nDate: " + task.getFormattedDate() + " (" + task.getWeekdayDisplay() + ")"
+                + "\nTime: " + task.getFormattedTime();
+        confirm.setContentText(details);
         Optional<ButtonType> result = confirm.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
+            DatabaseHelper.deleteCalendarTask(task.getActivityId());
             DatabaseHelper.deleteRoutineActivity(task.getActivityId());
-            buildRoutineGrid();
+            renderCalendar();
             loadTasksSidebar();
         }
     }
@@ -1998,6 +2090,289 @@ public class HelloController {
         }));
         taskCountdownTimeline.setCycleCount(Animation.INDEFINITE);
         taskCountdownTimeline.play();
+    }
+
+    /**
+     * Initializes the static weekday headers (SUN - SAT) for the monthly calendar grid.
+     */
+    private void setupCalendarDayHeaders() {
+        if (calendarDayHeaders == null) return;
+        calendarDayHeaders.getChildren().clear();
+        calendarDayHeaders.getColumnConstraints().clear();
+
+        String[] dayNames = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+        for (int i = 0; i < 7; i++) {
+            ColumnConstraints col = new ColumnConstraints();
+            col.setPercentWidth(100.0 / 7.0);
+            col.setHgrow(Priority.ALWAYS);
+            calendarDayHeaders.getColumnConstraints().add(col);
+
+            Label header = new Label(dayNames[i]);
+            header.getStyleClass().add("calendar-day-header");
+            header.setMaxWidth(Double.MAX_VALUE);
+            header.setAlignment(Pos.CENTER);
+            calendarDayHeaders.add(header, i, 0);
+        }
+    }
+
+    /**
+     * Sets up the interactive Month and Year selector dropdowns.
+     */
+    private void setupCalendarSelectors() {
+        if (calendarMonthSelect == null || calendarYearSelect == null) return;
+
+        calendarMonthSelect.getItems().setAll(
+                "January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"
+        );
+
+        int currentYear = YearMonth.now().getYear();
+        List<Integer> years = new ArrayList<>();
+        for (int y = currentYear - 5; y <= currentYear + 10; y++) {
+            years.add(y);
+        }
+        calendarYearSelect.getItems().setAll(years);
+
+        calendarMonthSelect.setOnAction(e -> {
+            if (!isUpdatingCalendarSelectors) {
+                int selectedMonthIdx = calendarMonthSelect.getSelectionModel().getSelectedIndex();
+                Integer selectedYear = calendarYearSelect.getValue();
+                if (selectedMonthIdx >= 0 && selectedYear != null) {
+                    currentCalendarMonth = YearMonth.of(selectedYear, selectedMonthIdx + 1);
+                    renderCalendar();
+                }
+            }
+        });
+
+        calendarYearSelect.setOnAction(e -> {
+            if (!isUpdatingCalendarSelectors) {
+                int selectedMonthIdx = calendarMonthSelect.getSelectionModel().getSelectedIndex();
+                Integer selectedYear = calendarYearSelect.getValue();
+                if (selectedMonthIdx >= 0 && selectedYear != null) {
+                    currentCalendarMonth = YearMonth.of(selectedYear, selectedMonthIdx + 1);
+                    renderCalendar();
+                }
+            }
+        });
+    }
+
+    @FXML
+    public void handlePrevMonth() {
+        currentCalendarMonth = currentCalendarMonth.minusMonths(1);
+        renderCalendar();
+    }
+
+    @FXML
+    public void handleNextMonth() {
+        currentCalendarMonth = currentCalendarMonth.plusMonths(1);
+        renderCalendar();
+    }
+
+    @FXML
+    public void handleToday() {
+        currentCalendarMonth = YearMonth.now();
+        renderCalendar();
+    }
+
+    @FXML
+    public void handleAddNewCalendarTask() {
+        if (currentUser == null || calendarView == null) return;
+        CalendarTaskDialog.show(
+                calendarView.getScene().getWindow(),
+                currentUser.getId(),
+                LocalDate.now(),
+                () -> {
+                    renderCalendar();
+                    loadTasksSidebar();
+                }
+        );
+    }
+
+    /**
+     * Renders the interactive monthly Google Calendar-style view in calendarGrid.
+     */
+    public void renderCalendar() {
+        if (calendarGrid == null) return;
+
+        isUpdatingCalendarSelectors = true;
+        try {
+            if (calendarYearSelect != null) {
+                int y = currentCalendarMonth.getYear();
+                if (!calendarYearSelect.getItems().contains(y)) {
+                    calendarYearSelect.getItems().add(y);
+                    Collections.sort(calendarYearSelect.getItems());
+                }
+                calendarYearSelect.setValue(y);
+            }
+            if (calendarMonthSelect != null) {
+                calendarMonthSelect.getSelectionModel().select(currentCalendarMonth.getMonthValue() - 1);
+            }
+        } finally {
+            isUpdatingCalendarSelectors = false;
+        }
+
+        calendarGrid.getChildren().clear();
+        calendarGrid.getColumnConstraints().clear();
+        calendarGrid.getRowConstraints().clear();
+
+        for (int i = 0; i < 7; i++) {
+            ColumnConstraints col = new ColumnConstraints();
+            col.setPercentWidth(100.0 / 7.0);
+            col.setHgrow(Priority.ALWAYS);
+            calendarGrid.getColumnConstraints().add(col);
+        }
+
+        // Fetch all calendar tasks & group by date
+        Map<LocalDate, List<RoutineTaskItem>> tasksByDate = new HashMap<>();
+        if (currentUser != null) {
+            List<RoutineTaskItem> tasks = DatabaseHelper.getUserCalendarTasks(currentUser.getId());
+            for (RoutineTaskItem t : tasks) {
+                LocalDate d = t.getDeadlineDate();
+                if (d != null) {
+                    tasksByDate.computeIfAbsent(d, k -> new ArrayList<>()).add(t);
+                }
+            }
+            // Also legacy routine activities
+            Map<String, RoutineSlot> slots = DatabaseHelper.getAllRoutineSlots(currentUser.getId());
+            for (RoutineSlot slot : slots.values()) {
+                if (slot.getActivities() != null) {
+                    for (SpecialActivity activity : slot.getActivities()) {
+                        if (activity.getDeadlineInfo() != null && !activity.getDeadlineInfo().trim().isEmpty()) {
+                            RoutineTaskItem legacyItem = new RoutineTaskItem(
+                                    activity.getId(),
+                                    slot.getId(),
+                                    slot.getSubjectName(),
+                                    slot.getTeacherCode(),
+                                    slot.getDayOfWeek(),
+                                    slot.getTimeSlot(),
+                                    activity.getActivityType(),
+                                    activity.getDeadlineInfo()
+                            );
+                            LocalDate d = legacyItem.getDeadlineDate();
+                            if (d != null) {
+                                boolean exists = false;
+                                for (RoutineTaskItem existing : tasksByDate.getOrDefault(d, Collections.emptyList())) {
+                                    if (existing.getActivityId() == legacyItem.getActivityId()) {
+                                        exists = true;
+                                        break;
+                                    }
+                                }
+                                if (!exists) {
+                                    tasksByDate.computeIfAbsent(d, k -> new ArrayList<>()).add(legacyItem);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        LocalDate firstOfMonth = currentCalendarMonth.atDay(1);
+        int daysInMonth = currentCalendarMonth.lengthOfMonth();
+        // Sunday = 0, Monday = 1, ..., Saturday = 6
+        int startDayOfWeek = firstOfMonth.getDayOfWeek().getValue() % 7;
+
+        LocalDate today = LocalDate.now();
+
+        int totalCells = (startDayOfWeek + daysInMonth <= 35) ? 35 : 42;
+        LocalDate startDate = firstOfMonth.minusDays(startDayOfWeek);
+
+        for (int i = 0; i < totalCells; i++) {
+            LocalDate date = startDate.plusDays(i);
+            int row = i / 7;
+            int col = i % 7;
+
+            boolean isCurrentMonth = date.getMonth().equals(currentCalendarMonth.getMonth());
+            boolean isToday = date.equals(today);
+
+            VBox cell = new VBox(4);
+            cell.getStyleClass().add("calendar-day-cell");
+            if (!isCurrentMonth) {
+                cell.getStyleClass().add("calendar-day-cell-other-month");
+            }
+            VBox.setVgrow(cell, Priority.ALWAYS);
+
+            // Day Header Row
+            HBox dayHeader = new HBox();
+            dayHeader.setAlignment(Pos.CENTER_LEFT);
+
+            Label dayNumLabel = new Label(String.valueOf(date.getDayOfMonth()));
+            if (isToday) {
+                dayNumLabel.getStyleClass().add("calendar-day-today-badge");
+            } else {
+                dayNumLabel.getStyleClass().add("calendar-day-number");
+                if (!isCurrentMonth) {
+                    dayNumLabel.setStyle("-fx-text-fill: #94a3b8;");
+                }
+            }
+            dayHeader.getChildren().add(dayNumLabel);
+
+            // Task pills container
+            VBox tasksBox = new VBox(3);
+            tasksBox.setMaxWidth(Double.MAX_VALUE);
+            VBox.setVgrow(tasksBox, Priority.ALWAYS);
+
+            List<RoutineTaskItem> dayTasks = tasksByDate.get(date);
+            if (dayTasks != null && !dayTasks.isEmpty()) {
+                int displayLimit = 3;
+                int shown = 0;
+                for (RoutineTaskItem task : dayTasks) {
+                    if (shown >= displayLimit) {
+                        int remaining = dayTasks.size() - displayLimit;
+                        Label moreLabel = new Label("+" + remaining + " more");
+                        moreLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #6366f1; -fx-font-weight: bold; -fx-padding: 1px 4px;");
+                        tasksBox.getChildren().add(moreLabel);
+                        break;
+                    }
+
+                    RoutineTaskItem.TaskColorTheme theme = task.getColorTheme();
+                    HBox pill = new HBox(4);
+                    pill.setAlignment(Pos.CENTER_LEFT);
+                    pill.getStyleClass().add("calendar-task-pill");
+                    pill.setStyle("-fx-background-color: " + theme.getBadgeBg() + "; -fx-border-color: " + theme.getBorderColor() + "; -fx-border-radius: 4px; -fx-border-width: 0.8px;");
+
+                    String taskText = (task.getSubjectName() != null && !task.getSubjectName().isEmpty() && !task.getSubjectName().equals("Activity"))
+                            ? "[" + task.getSubjectName() + "] " + task.getActivityType()
+                            : task.getActivityType();
+                    Label pillLabel = new Label(taskText);
+                    pillLabel.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: " + theme.getBadgeText() + ";");
+                    pillLabel.setMaxWidth(110);
+                    pillLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
+
+                    pill.getChildren().add(pillLabel);
+
+                    // Clicking the pill opens TaskDetailDialog
+                    pill.setOnMouseClicked(pe -> {
+                        pe.consume();
+                        TaskDetailDialog.show(calendarView.getScene().getWindow(), currentUser.getId(), task, () -> {
+                            renderCalendar();
+                            loadTasksSidebar();
+                        });
+                    });
+
+                    tasksBox.getChildren().add(pill);
+                    shown++;
+                }
+            }
+
+            cell.getChildren().addAll(dayHeader, tasksBox);
+
+            // Clicking the day cell opens CalendarTaskDialog for that date
+            cell.setOnMouseClicked(ce -> {
+                if (currentUser == null || calendarView == null) return;
+                CalendarTaskDialog.show(
+                        calendarView.getScene().getWindow(),
+                        currentUser.getId(),
+                        date,
+                        () -> {
+                            renderCalendar();
+                            loadTasksSidebar();
+                        }
+                );
+            });
+
+            calendarGrid.add(cell, col, row);
+        }
     }
 
     /**

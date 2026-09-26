@@ -533,6 +533,106 @@ public class DatabaseHelperTest {
         assertNotNull(refreshedSlot);
         assertEquals(0, refreshedSlot.getActivities().size(), "Activity should be deleted from slot");
     }
+
+    @Test
+    void testCalendarTasksAndDecoupledRoutine() {
+        long ts = System.currentTimeMillis();
+        DatabaseHelper.registerUser("caluser" + ts + "@gmail.com", "caluser" + ts, "Password123!");
+        User user = DatabaseHelper.authenticateUser("caluser" + ts, "Password123!");
+        assertNotNull(user);
+
+        // 1. Create multiple calendar tasks
+        int id1 = DatabaseHelper.createCalendarTask(
+                user.getId(),
+                "Midterm Review Presentation",
+                "Math 2207",
+                "Presentation",
+                "2026-10-15",
+                "10:30 AM",
+                "Prepare slides 1 to 20"
+        );
+        assertTrue(id1 > 0, "First calendar task should be created successfully with valid id");
+
+        int id2 = DatabaseHelper.createCalendarTask(
+                user.getId(),
+                "Lab Report 2",
+                "CSE 2100",
+                "Assignment",
+                "2026-10-22",
+                "11:59 PM",
+                "Submit PDF via portal"
+        );
+        assertTrue(id2 > 0, "Second calendar task should be created successfully with valid id");
+
+        // 2. Fetch user calendar tasks
+        List<RoutineTaskItem> tasks = DatabaseHelper.getUserCalendarTasks(user.getId());
+        assertEquals(2, tasks.size(), "Should have retrieved 2 calendar tasks");
+
+        RoutineTaskItem task1 = tasks.get(0);
+        assertEquals("Midterm Review Presentation", task1.getActivityType());
+        assertEquals("Math 2207", task1.getSubjectName());
+        assertEquals("Prepare slides 1 to 20", task1.getNotes());
+        assertNotNull(task1.getDeadlineDate());
+        assertEquals("2026-10-15", task1.getDeadlineDate().toString());
+        assertEquals("Thursday", task1.getWeekdayDisplay());
+        assertEquals("10:30 AM", task1.getFormattedTime());
+
+        RoutineTaskItem task2 = tasks.get(1);
+        assertEquals("Lab Report 2", task2.getActivityType());
+        assertEquals("CSE 2100", task2.getSubjectName());
+        assertEquals("2026-10-22", task2.getDeadlineDate().toString());
+        assertEquals("Thursday", task2.getWeekdayDisplay());
+
+        // 2b. Update task 1
+        boolean updated = DatabaseHelper.updateCalendarTask(
+                task1.getActivityId(),
+                "Updated Presentation Slides",
+                "Math 2207 Advanced",
+                "Project",
+                "2026-10-18",
+                "04:00 PM",
+                "Include appendix and references"
+        );
+        assertTrue(updated, "updateCalendarTask should succeed");
+
+        List<RoutineTaskItem> updatedTasks = DatabaseHelper.getUserCalendarTasks(user.getId());
+        RoutineTaskItem updatedItem = updatedTasks.stream().filter(t -> t.getActivityId() == task1.getActivityId()).findFirst().orElse(null);
+        assertNotNull(updatedItem);
+        assertEquals("Project - Updated Presentation Slides", updatedItem.getActivityType());
+        assertEquals("Math 2207 Advanced", updatedItem.getSubjectName());
+        assertEquals("Include appendix and references", updatedItem.getNotes());
+        assertEquals("Project", updatedItem.getParsedCategory());
+        assertEquals("Updated Presentation Slides", updatedItem.getParsedTitle());
+        assertEquals("2026-10-18", updatedItem.getDeadlineDate().toString());
+        assertEquals("04:00 PM", updatedItem.getFormattedTime());
+
+        // 3. Delete task 1
+        boolean deleted1 = DatabaseHelper.deleteCalendarTask(task1.getActivityId());
+        assertTrue(deleted1, "deleteCalendarTask should succeed");
+
+        List<RoutineTaskItem> afterDelete = DatabaseHelper.getUserCalendarTasks(user.getId());
+        assertEquals(1, afterDelete.size(), "Should have 1 task remaining after deletion");
+        assertEquals("Lab Report 2", afterDelete.get(0).getActivityType());
+
+        // Delete task 2 via unified deleteRoutineActivity
+        boolean deleted2 = DatabaseHelper.deleteRoutineActivity(task2.getActivityId());
+        assertTrue(deleted2, "deleteRoutineActivity should delete from calendar_tasks too");
+
+        List<RoutineTaskItem> emptyList = DatabaseHelper.getUserCalendarTasks(user.getId());
+        assertEquals(0, emptyList.size(), "All calendar tasks should be deleted");
+
+        // 4. Decoupled Routine Slot: routine slot without activities saves and retrieves cleanly
+        RoutineSlot simpleSlot = new RoutineSlot(user.getId(), "Sunday", "10:00 - 11:20", "EEE 2101", "MM");
+        boolean slotSaved = DatabaseHelper.saveRoutineSlot(simpleSlot);
+        assertTrue(slotSaved, "Simple routine slot should save without activities");
+
+        Map<String, RoutineSlot> slots = DatabaseHelper.getAllRoutineSlots(user.getId());
+        RoutineSlot fetched = slots.get("Sunday|||10:00 - 11:20");
+        assertNotNull(fetched);
+        assertEquals("EEE 2101", fetched.getSubjectName());
+        assertEquals("MM", fetched.getTeacherCode());
+        assertTrue(fetched.getActivities() == null || fetched.getActivities().isEmpty(), "Slot should have no activities");
+    }
 }
 
 

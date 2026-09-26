@@ -2,6 +2,7 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.layout.FlowPane?>
@@ -24,7 +25,7 @@
           style="-fx-background-color: #ffffff; -fx-padding: 12px 18px; -fx-background-radius: 10px; -fx-border-color: #e2e8f0; -fx-border-radius: 10px;">
 
         <!-- Left Sidebar Toggle Button -->
-        <Button fx:id="leftToggleBtn" onAction="#handleToggleLeft" styleClass="btn-toggle" text="☰ Sidebar" />
+        <Button fx:id="leftToggleBtn" onAction="#handleToggleLeft" styleClass="btn-toggle" text="☰" />
 
         <VBox spacing="2.0">
             <Label styleClass="form-title" text="Study Buddy 🎓" />
@@ -36,8 +37,8 @@
 
 
 
-        <!-- Right Sidebar Toggle Button -->
-        <Button fx:id="rightToggleBtn" onAction="#handleToggleRight" styleClass="btn-toggle" text="Sidebar ▤" />
+        <!-- Right Sidebar Toggle Button (Shows on Homepage only) -->
+        <Button fx:id="rightToggleBtn" onAction="#handleToggleRight" styleClass="btn-toggle" text="📋" />
     </HBox>
 
     <!-- Main Workspace with Collapsible Left and Right Sidebars -->
@@ -53,6 +54,7 @@
             <VBox fx:id="leftSidebarContent" spacing="8.0" VBox.vgrow="ALWAYS">
                 <Button fx:id="navHomeBtn" alignment="BASELINE_LEFT" maxWidth="Infinity" onAction="#handleOpenMainMenu" styleClass="nav-item" text="🏠  Main Menu" />
                 <Button fx:id="navRoutineBtn" alignment="BASELINE_LEFT" maxWidth="Infinity" onAction="#handleOpenRoutine" styleClass="nav-item" text="📅  Class Routine" />
+                <Button fx:id="navCalendarBtn" alignment="BASELINE_LEFT" maxWidth="Infinity" onAction="#handleOpenCalendar" styleClass="nav-item" text="🗓️  Calendar" />
             </VBox>
 
             <!-- Bottom Section: Logout Button -->
@@ -100,15 +102,43 @@
                 </VBox>
             </ScrollPane>
 
-            <!-- View 3: Notebook Workspace View (Topics & Pages Explorer + Playground) -->
+            <!-- View 3: Google Calendar-Style Interactive Monthly Calendar View -->
+            <VBox fx:id="calendarView" spacing="12.0" visible="false" managed="false"
+                  style="-fx-background-color: #ffffff; -fx-padding: 20px; -fx-background-radius: 10px; -fx-border-color: #cbd5e1; -fx-border-radius: 10px;">
+                
+                <!-- Calendar Header Bar: Month/Year Dropdown Selectors, Navigation (Prev, Today, Next), and + Add Task button -->
+                <HBox alignment="CENTER_LEFT" spacing="14.0" style="-fx-padding: 0 0 12px 0; -fx-border-color: #e2e8f0; -fx-border-width: 0 0 1px 0;">
+                    <HBox alignment="CENTER_LEFT" spacing="8.0">
+                        <ComboBox fx:id="calendarMonthSelect" styleClass="calendar-select-box" prefWidth="145.0" />
+                        <ComboBox fx:id="calendarYearSelect" styleClass="calendar-select-box" prefWidth="95.0" />
+                    </HBox>
+                    <HBox alignment="CENTER_LEFT" spacing="6.0">
+                        <Button onAction="#handlePrevMonth" styleClass="btn-secondary-action" text="◀" />
+                        <Button onAction="#handleToday" styleClass="btn-secondary-action" text="Today" />
+                        <Button onAction="#handleNextMonth" styleClass="btn-secondary-action" text="▶" />
+                    </HBox>
+                    <Region HBox.hgrow="ALWAYS" />
+                    <Button onAction="#handleAddNewCalendarTask" styleClass="btn-primary" text="+ Add Task" />
+                </HBox>
+
+                <!-- Day Headers (Sun - Sat) -->
+                <GridPane fx:id="calendarDayHeaders" hgap="6.0" style="-fx-padding: 4px 0;" />
+
+                <!-- Scrollable Monthly Grid -->
+                <ScrollPane fitToWidth="true" fitToHeight="true"
+                            style="-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent;" VBox.vgrow="ALWAYS">
+                    <GridPane fx:id="calendarGrid" hgap="6.0" vgap="6.0" VBox.vgrow="ALWAYS" />
+                </ScrollPane>
+            </VBox>
+
+            <!-- View 4: Notebook Workspace View (Topics & Pages Explorer + Playground) -->
             <VBox fx:id="notebookWorkspaceView" spacing="12.0" visible="false" managed="false"
                   style="-fx-background-color: #ffffff; -fx-padding: 16px; -fx-background-radius: 10px; -fx-border-color: #cbd5e1; -fx-border-radius: 10px;">
                 
-                <!-- Workspace Top Bar: Back Button, Topics Toggle, Tasks Toggle, Breadcrumb, Status -->
+                <!-- Workspace Top Bar: Back Button, Topics Toggle, Breadcrumb, Status -->
                 <HBox alignment="CENTER_LEFT" spacing="12.0" style="-fx-padding: 0 0 10px 0; -fx-border-color: #e2e8f0; -fx-border-width: 0 0 1px 0;">
                     <Button onAction="#handleBackToDashboard" styleClass="btn-secondary-action" text="◀ Back to Notebooks" />
                     <Button fx:id="toggleTopicsBtn" onAction="#handleToggleTopicsSidebar" styleClass="btn-secondary-action" text="📂 Topics" />
-                    <Button fx:id="notebookTasksBtn" onAction="#handleToggleRight" styleClass="btn-secondary-action" text="📋 Tasks" />
                     <Label fx:id="notebookBreadcrumbLabel" style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" text="Notebook Title" />
                     <Region HBox.hgrow="ALWAYS" />
                     <Label fx:id="workspaceStatusLabel" style="-fx-font-size: 11px; -fx-text-fill: #64748b;" text="" />

@@ -11,6 +11,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Helper class to manage SQLite database operations for Study Buddy.
@@ -111,6 +112,19 @@ public class DatabaseHelper {
                 + "FOREIGN KEY(topic_id) REFERENCES topics(id) ON DELETE CASCADE"
                 + ");";
 
+        String createCalendarTasksTable = "CREATE TABLE IF NOT EXISTS calendar_tasks ("
+                + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "user_id INTEGER NOT NULL, "
+                + "title TEXT NOT NULL, "
+                + "subject TEXT, "
+                + "activity_type TEXT NOT NULL, "
+                + "deadline_date TEXT NOT NULL, "
+                + "deadline_time TEXT, "
+                + "notes TEXT, "
+                + "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                + "FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE"
+                + ");";
+
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
             stmt.execute(createUsersTable);
@@ -121,6 +135,7 @@ public class DatabaseHelper {
             stmt.execute(createTopicsTable);
             stmt.execute(createPagesTable);
             stmt.execute(createTopicFilesTable);
+            stmt.execute(createCalendarTasksTable);
         } catch (SQLException e) {
             System.err.println("Failed to initialize database: " + e.getMessage());
             e.printStackTrace();
@@ -421,19 +436,140 @@ public class DatabaseHelper {
     }
 
     /**
-     * Deletes a specific routine activity by its primary key ID.
+     * Deletes a specific routine activity or calendar task by its primary key ID.
      */
     public static boolean deleteRoutineActivity(int activityId) {
+        boolean delCal = deleteCalendarTask(activityId);
         String sql = "DELETE FROM routine_activities WHERE id = ?";
         try (Connection conn = getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, activityId);
+            boolean delRoutine = pstmt.executeUpdate() > 0;
+            return delCal || delRoutine;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return delCal;
+        }
+    }
+
+    // ==========================================
+    // CALENDAR TASKS CRUD OPERATIONS
+    // ==========================================
+
+    public static int createCalendarTask(int userId, String title, String subject, String activityType,
+                                         String deadlineDate, String deadlineTime, String notes) {
+        String sql = "INSERT INTO calendar_tasks (user_id, title, subject, activity_type, deadline_date, deadline_time, notes) "
+                   + "VALUES (?, ?, ?, ?, ?, ?, ?)";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setInt(1, userId);
+            pstmt.setString(2, (title != null && !title.trim().isEmpty()) ? title.trim() : "Task");
+            pstmt.setString(3, (subject != null && !subject.trim().isEmpty()) ? subject.trim() : "General");
+            pstmt.setString(4, (activityType != null && !activityType.trim().isEmpty()) ? activityType.trim() : "Task");
+            pstmt.setString(5, deadlineDate != null ? deadlineDate.trim() : "");
+            pstmt.setString(6, (deadlineTime != null && !deadlineTime.trim().isEmpty()) ? deadlineTime.trim() : "11:59 PM");
+            pstmt.setString(7, notes != null ? notes.trim() : "");
             pstmt.executeUpdate();
-            return true;
+
+            try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return -1;
+    }
+
+    public static List<RoutineTaskItem> getUserCalendarTasks(int userId) {
+        List<RoutineTaskItem> list = new ArrayList<>();
+        String sql = "SELECT id, title, subject, activity_type, deadline_date, deadline_time, notes FROM calendar_tasks WHERE user_id = ? ORDER BY deadline_date ASC, deadline_time ASC";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    int id = rs.getInt("id");
+                    String title = rs.getString("title");
+                    String subject = rs.getString("subject");
+                    String type = rs.getString("activity_type");
+                    String date = rs.getString("deadline_date");
+                    String time = rs.getString("deadline_time");
+                    String notes = rs.getString("notes");
+
+                    String rawDeadline = date;
+                    if (time != null && !time.isEmpty()) {
+                        rawDeadline += " (" + time + ")";
+                    }
+
+                    String weekday = "";
+                    try {
+                        java.time.LocalDate d = java.time.LocalDate.parse(date);
+                        weekday = d.getDayOfWeek().getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH);
+                    } catch (Exception ignored) {}
+
+                    RoutineTaskItem item = new RoutineTaskItem(id, 0, subject, "", weekday, time, type + " - " + title, rawDeadline, notes);
+                    list.add(item);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    public static boolean deleteCalendarTask(int taskId) {
+        String sql = "DELETE FROM calendar_tasks WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, taskId);
+            return pstmt.executeUpdate() > 0;
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
         }
+    }
+
+    public static boolean updateCalendarTask(int taskId, String title, String subject, String activityType,
+                                             String deadlineDate, String deadlineTime, String notes) {
+        String sql = "UPDATE calendar_tasks SET title = ?, subject = ?, activity_type = ?, deadline_date = ?, deadline_time = ?, notes = ? WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, (title != null && !title.trim().isEmpty()) ? title.trim() : "Task");
+            pstmt.setString(2, (subject != null && !subject.trim().isEmpty()) ? subject.trim() : "General");
+            pstmt.setString(3, (activityType != null && !activityType.trim().isEmpty()) ? activityType.trim() : "Task");
+            pstmt.setString(4, deadlineDate != null ? deadlineDate.trim() : "");
+            pstmt.setString(5, (deadlineTime != null && !deadlineTime.trim().isEmpty()) ? deadlineTime.trim() : "11:59 PM");
+            pstmt.setString(6, notes != null ? notes.trim() : "");
+            pstmt.setInt(7, taskId);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public static boolean updateRoutineActivity(int activityId, String activityType, String deadlineInfo) {
+        String sql = "UPDATE routine_activities SET activity_type = ?, deadline_info = ? WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, activityType);
+            pstmt.setString(2, deadlineInfo);
+            pstmt.setInt(3, activityId);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public static boolean updateAnyTask(int taskId, String title, String subject, String activityType,
+                                        String deadlineDate, String deadlineTime, String notes) {
+        boolean updatedCal = updateCalendarTask(taskId, title, subject, activityType, deadlineDate, deadlineTime, notes);
+        if (updatedCal) return true;
+        String rawDeadline = deadlineDate + (deadlineTime != null && !deadlineTime.isEmpty() ? " (" + deadlineTime + ")" : "");
+        return updateRoutineActivity(taskId, activityType + " - " + title, rawDeadline);
     }
 
     /**

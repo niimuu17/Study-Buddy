@@ -28,24 +28,60 @@ public class RoutineTaskItem implements Comparable<RoutineTaskItem> {
     private final String timeSlot;
     private final String activityType;
     private final String rawDeadline;
+    private final String notes;
     private final LocalDateTime targetDateTime;
 
     public RoutineTaskItem(int activityId, int slotId, String subjectName, String teacherCode, String weekday,
-                           String timeSlot, String activityType, String rawDeadline) {
+                           String timeSlot, String activityType, String rawDeadline, String notes) {
         this.activityId = activityId;
         this.slotId = slotId;
-        this.subjectName = (subjectName != null && !subjectName.isEmpty()) ? subjectName : "Class";
+        this.subjectName = (subjectName != null && !subjectName.isEmpty()) ? subjectName : "General";
         this.teacherCode = (teacherCode != null) ? teacherCode : "";
         this.weekday = (weekday != null) ? weekday : "";
         this.timeSlot = (timeSlot != null) ? timeSlot : "";
-        this.activityType = (activityType != null && !activityType.isEmpty()) ? activityType : "Academic Task";
+        this.activityType = (activityType != null && !activityType.isEmpty()) ? activityType : "Task";
         this.rawDeadline = (rawDeadline != null) ? rawDeadline.trim() : "";
+        this.notes = (notes != null) ? notes.trim() : "";
         this.targetDateTime = parseDeadline(this.rawDeadline);
+    }
+
+    public RoutineTaskItem(int activityId, int slotId, String subjectName, String teacherCode, String weekday,
+                           String timeSlot, String activityType, String rawDeadline) {
+        this(activityId, slotId, subjectName, teacherCode, weekday, timeSlot, activityType, rawDeadline, "");
     }
 
     public RoutineTaskItem(int slotId, String subjectName, String teacherCode, String weekday,
                            String timeSlot, String activityType, String rawDeadline) {
-        this(0, slotId, subjectName, teacherCode, weekday, timeSlot, activityType, rawDeadline);
+        this(0, slotId, subjectName, teacherCode, weekday, timeSlot, activityType, rawDeadline, "");
+    }
+
+    public String getNotes() {
+        return notes != null ? notes : "";
+    }
+
+    public LocalDate getDeadlineDate() {
+        return targetDateTime != null ? targetDateTime.toLocalDate() : null;
+    }
+
+    public LocalTime getDeadlineTime() {
+        return targetDateTime != null ? targetDateTime.toLocalTime() : null;
+    }
+
+    public String getFormattedDate() {
+        if (targetDateTime == null) return rawDeadline;
+        return targetDateTime.format(DateTimeFormatter.ofPattern("MMM dd, yyyy", Locale.ENGLISH));
+    }
+
+    public String getFormattedTime() {
+        if (targetDateTime == null) return timeSlot;
+        return targetDateTime.format(DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH));
+    }
+
+    public String getWeekdayDisplay() {
+        if (targetDateTime != null) {
+            return targetDateTime.getDayOfWeek().getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH);
+        }
+        return weekday != null ? weekday : "";
     }
 
     public int getActivityId() {
@@ -74,6 +110,20 @@ public class RoutineTaskItem implements Comparable<RoutineTaskItem> {
 
     public String getActivityType() {
         return activityType;
+    }
+
+    public String getParsedCategory() {
+        if (activityType != null && activityType.contains(" - ")) {
+            return activityType.substring(0, activityType.indexOf(" - ")).trim();
+        }
+        return activityType != null ? activityType : "Task";
+    }
+
+    public String getParsedTitle() {
+        if (activityType != null && activityType.contains(" - ")) {
+            return activityType.substring(activityType.indexOf(" - ") + 3).trim();
+        }
+        return activityType != null ? activityType : "";
     }
 
     public String getRawDeadline() {

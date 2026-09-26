@@ -405,6 +405,88 @@
     -fx-padding: 4px 8px;
 }
 
+/* Google Calendar-Style View */
+.calendar-day-header {
+    -fx-alignment: center;
+    -fx-padding: 8px 4px;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+    -fx-text-fill: #475569;
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 0 0 1px 0;
+}
+
+.calendar-day-cell {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 0.5px;
+    -fx-padding: 6px;
+    -fx-min-height: 95px;
+    -fx-cursor: hand;
+}
+
+.calendar-day-cell:hover {
+    -fx-background-color: #f8fafc;
+}
+
+.calendar-day-cell-other-month {
+    -fx-background-color: #fafbfd;
+    -fx-opacity: 0.55;
+}
+
+.calendar-day-number {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #334155;
+}
+
+.calendar-day-today-badge {
+    -fx-background-color: #4f46e5;
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 12px;
+    -fx-min-width: 24px;
+    -fx-max-width: 24px;
+    -fx-min-height: 24px;
+    -fx-max-height: 24px;
+    -fx-alignment: center;
+}
+
+.calendar-task-pill {
+    -fx-background-radius: 4px;
+    -fx-padding: 2px 6px;
+    -fx-cursor: hand;
+}
+
+.calendar-task-pill:hover {
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.15), 4, 0, 0, 1);
+}
+
+.calendar-select-box {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #cbd5e1;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 2px 6px;
+    -fx-cursor: hand;
+}
+
+.calendar-select-box:hover {
+    -fx-background-color: #f1f5f9;
+    -fx-border-color: #94a3b8;
+}
+
+.calendar-select-box .list-cell {
+    -fx-font-size: 13px;
+    -fx-font-weight: normal;
+    -fx-text-fill: #1e293b;
+}
+
+
 
 
 
