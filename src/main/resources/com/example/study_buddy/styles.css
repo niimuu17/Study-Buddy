@@ -667,6 +667,21 @@
     -fx-text-fill: #1e293b;
 }
 
+.course-card-dots-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #94a3b8;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-padding: 0 6px;
+    -fx-background-radius: 4px;
+}
+
+.course-card-dots-btn:hover {
+    -fx-background-color: #f1f5f9;
+    -fx-text-fill: #334155;
+}
+
 .chapter-card {
     -fx-background-color: #ffffff;
     -fx-background-radius: 8px;

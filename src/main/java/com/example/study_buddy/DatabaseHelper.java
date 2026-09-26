@@ -1163,6 +1163,20 @@ public class DatabaseHelper {
         }
     }
 
+    public static boolean updateCourse(int courseId, String courseCode, String courseTitle) {
+        String sql = "UPDATE courses SET course_code = ?, course_title = ? WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, courseCode != null ? courseCode.trim() : "");
+            pstmt.setString(2, courseTitle != null ? courseTitle.trim() : "");
+            pstmt.setInt(3, courseId);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     public static List<SyllabusChapter> getSyllabusChapters(int courseId) {
         List<SyllabusChapter> chapters = new ArrayList<>();
         String chapSql = "SELECT id, course_id, chapter_number, title FROM syllabus_chapters WHERE course_id = ? ORDER BY chapter_number ASC, id ASC";

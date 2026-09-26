@@ -59,6 +59,17 @@ public class ProgressServiceTest {
     }
 
     @Test
+    public void testCourseUpdate() {
+        boolean updated = DatabaseHelper.updateCourse(testCourseId, "CSE 2101", "Advanced Object-Oriented Programming");
+        assertTrue(updated, "Course update should succeed");
+
+        List<Course> courses = DatabaseHelper.getCourses(testUserId);
+        boolean foundUpdated = courses.stream()
+                .anyMatch(c -> c.getId() == testCourseId && "CSE 2101".equals(c.getCourseCode()) && "Advanced Object-Oriented Programming".equals(c.getCourseTitle()));
+        assertTrue(foundUpdated, "Course should reflect updated code and title");
+    }
+
+    @Test
     public void testSyllabusChaptersAndTopicsPersistence() {
         List<SyllabusChapter> chapters = new ArrayList<>();
 

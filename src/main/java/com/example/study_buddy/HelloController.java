@@ -544,7 +544,24 @@ public class HelloController {
             codeLabel.getStyleClass().add("course-code-badge");
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
-            topRow.getChildren().addAll(codeLabel, spacer);
+
+            Button dotsBtn = new Button("⋮");
+            dotsBtn.getStyleClass().add("course-card-dots-btn");
+
+            ContextMenu cardMenu = new ContextMenu();
+            MenuItem editItem = new MenuItem("✏️ Edit Course");
+            MenuItem deleteItem = new MenuItem("🗑️ Delete Course");
+            editItem.setOnAction(ev -> handleEditCourseDialog(c));
+            deleteItem.setOnAction(ev -> handleDeleteCourseConfirm(c));
+            cardMenu.getItems().addAll(editItem, deleteItem);
+
+            dotsBtn.setOnAction(ev -> {
+                ev.consume();
+                cardMenu.show(dotsBtn, Side.BOTTOM, 0, 0);
+            });
+            dotsBtn.setOnMouseClicked(e -> e.consume());
+
+            topRow.getChildren().addAll(codeLabel, spacer, dotsBtn);
 
             Label titleLabel = new Label(c.getCourseTitle());
             titleLabel.getStyleClass().add("course-title-text");
@@ -555,22 +572,9 @@ public class HelloController {
 
             card.setOnMouseClicked(e -> openCourseProgressDetail(c));
 
-            // Right-click context menu to delete course
-            ContextMenu cm = new ContextMenu();
-            MenuItem delItem = new MenuItem("🗑️ Delete Course");
-            delItem.setOnAction(ev -> {
-                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
-                        "Delete course '" + c.getCourseCode() + "' and its syllabus data?",
-                        ButtonType.YES, ButtonType.NO);
-                confirm.showAndWait().ifPresent(res -> {
-                    if (res == ButtonType.YES) {
-                        DatabaseHelper.deleteCourse(c.getId());
-                        loadAndRenderCourses();
-                    }
-                });
+            card.setOnContextMenuRequested(ev -> {
+                cardMenu.show(card, ev.getScreenX(), ev.getScreenY());
             });
-            cm.getItems().add(delItem);
-            card.setOnContextMenuRequested(ev -> cm.show(card, ev.getScreenX(), ev.getScreenY()));
 
             coursesGrid.getChildren().add(card);
         }
@@ -867,6 +871,67 @@ public class HelloController {
             if (!pair.getKey().isEmpty() && !pair.getValue().isEmpty()) {
                 int uid = (currentUser != null) ? currentUser.getId() : 1;
                 DatabaseHelper.createCourse(uid, pair.getKey(), pair.getValue());
+                loadAndRenderCourses();
+            }
+        });
+    }
+
+    private void handleEditCourseDialog(Course c) {
+        if (c == null) return;
+        Dialog<Pair<String, String>> dialog = new Dialog<>();
+        dialog.setTitle("Edit Course");
+        dialog.setHeaderText("Update Course Code and Title");
+
+        ButtonType saveBtn = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20, 40, 10, 10));
+
+        TextField codeField = new TextField(c.getCourseCode());
+        TextField titleField = new TextField(c.getCourseTitle());
+
+        grid.add(new Label("Course Code:"), 0, 0);
+        grid.add(codeField, 1, 0);
+        grid.add(new Label("Course Title:"), 0, 1);
+        grid.add(titleField, 1, 1);
+
+        dialog.getDialogPane().setContent(grid);
+        Platform.runLater(codeField::requestFocus);
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == saveBtn) {
+                return new Pair<>(codeField.getText().trim(), titleField.getText().trim());
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(pair -> {
+            if (!pair.getKey().isEmpty() && !pair.getValue().isEmpty()) {
+                DatabaseHelper.updateCourse(c.getId(), pair.getKey(), pair.getValue());
+                loadAndRenderCourses();
+                if (currentSelectedCourse != null && currentSelectedCourse.getId() == c.getId()) {
+                    currentSelectedCourse = new Course(c.getId(), c.getUserId(), pair.getKey(), pair.getValue(), c.getCreatedAt());
+                    if (progressCourseTitleHeader != null) {
+                        progressCourseTitleHeader.setText(pair.getKey() + " - " + pair.getValue());
+                    }
+                }
+            }
+        });
+    }
+
+    private void handleDeleteCourseConfirm(Course c) {
+        if (c == null) return;
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "Delete course '" + c.getCourseCode() + "' and its syllabus data?",
+                ButtonType.YES, ButtonType.NO);
+        confirm.setTitle("Delete Course");
+        confirm.setHeaderText("Delete course " + c.getCourseCode() + "?");
+        confirm.showAndWait().ifPresent(res -> {
+            if (res == ButtonType.YES) {
+                DatabaseHelper.deleteCourse(c.getId());
                 loadAndRenderCourses();
             }
         });
