@@ -158,4 +158,58 @@ public class ProgressServiceTest {
         assertTrue(content.contains("Principles of OOP"));
         assertTrue(content.contains("Inheritance"));
     }
+
+    @Test
+    public void testDeleteSyllabusClearing() {
+        List<SyllabusChapter> chapters = new ArrayList<>();
+        SyllabusChapter ch1 = new SyllabusChapter(1, "To Be Deleted");
+        ch1.getTopics().add(new SyllabusTopic("Temp Topic 1"));
+        ch1.getTopics().add(new SyllabusTopic("Temp Topic 2"));
+        chapters.add(ch1);
+
+        DatabaseHelper.saveSyllabusChapters(testCourseId, chapters);
+        List<SyllabusChapter> beforeDelete = DatabaseHelper.getSyllabusChapters(testCourseId);
+        assertEquals(1, beforeDelete.size(), "Should have 1 chapter before deletion");
+        assertEquals(2, beforeDelete.get(0).getTopics().size(), "Should have 2 topics before deletion");
+
+        // Execute Delete Syllabus action (clear chapters)
+        DatabaseHelper.saveSyllabusChapters(testCourseId, new ArrayList<>());
+
+        List<SyllabusChapter> afterDelete = DatabaseHelper.getSyllabusChapters(testCourseId);
+        assertTrue(afterDelete.isEmpty(), "Syllabus chapters should be completely cleared after deletion");
+    }
+
+    @Test
+    public void testImageFileCheckAndMimeTypes() {
+        File pngFile = new File("syllabus_diagram.PNG");
+        File jpgFile = new File("photo.jpeg");
+        File pdfFile = new File("syllabus.pdf");
+        File docxFile = new File("outline.docx");
+
+        assertTrue(QuizSourceHelper.isImageFile(pngFile), "PNG should be recognized as image");
+        assertTrue(QuizSourceHelper.isImageFile(jpgFile), "JPEG should be recognized as image");
+        assertFalse(QuizSourceHelper.isImageFile(pdfFile), "PDF should not be recognized as image");
+        assertFalse(QuizSourceHelper.isImageFile(docxFile), "DOCX should not be recognized as image");
+
+        assertEquals("image/png", QuizSourceHelper.getImageMimeType(pngFile));
+        assertEquals("image/jpeg", QuizSourceHelper.getImageMimeType(jpgFile));
+    }
+
+    @Test
+    public void testDocxZipExtraction() throws IOException {
+        File tempDocx = Files.createTempFile("test_syllabus", ".docx").toFile();
+        tempDocx.deleteOnExit();
+
+        try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(new java.io.FileOutputStream(tempDocx))) {
+            java.util.zip.ZipEntry entry = new java.util.zip.ZipEntry("word/document.xml");
+            zos.putNextEntry(entry);
+            String xmlContent = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><w:document><w:body><w:p><w:t>Chapter 1: Advanced Java</w:t></w:p></w:body></w:document>";
+            zos.write(xmlContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            zos.closeEntry();
+        }
+
+        String extracted = QuizSourceHelper.readFileContent(tempDocx);
+        assertNotNull(extracted);
+        assertTrue(extracted.contains("Chapter 1: Advanced Java"), "Extracted DOCX text should contain Chapter 1: Advanced Java");
+    }
 }

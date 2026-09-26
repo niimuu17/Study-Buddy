@@ -5,6 +5,7 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.Side;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
@@ -126,8 +127,11 @@ public class HelloController {
     @FXML private PieChart syllabusPieChart;
     @FXML private Label examCountdownBadge;
     @FXML private Label examForecastText;
+    @FXML private Button examForecastToggleBtn;
 
     private Course currentSelectedCourse = null;
+    private String fullExamForecastText = "";
+    private boolean isExamForecastExpanded = false;
 
     private QuizSession currentQuizSession = null;
     private File uploadedQuizFile = null;
@@ -735,7 +739,7 @@ public class HelloController {
         String examDateStr = DatabaseHelper.getTermExamDate(course.getId());
         if (examDateStr == null || examDateStr.trim().isEmpty()) {
             if (examCountdownBadge != null) examCountdownBadge.setText("No Exam Set");
-            if (examForecastText != null) examForecastText.setText("Set a Term Exam date above to generate your personalized AI study pace forecast.");
+            setExamForecastContent("Set a Term Exam date above to generate your personalized AI study pace forecast.");
             return;
         }
 
@@ -765,26 +769,22 @@ public class HelloController {
             }
 
             if (total == 0) {
-                if (examForecastText != null) examForecastText.setText("Upload your syllabus PDF above so AI can calculate your preparation forecast.");
+                setExamForecastContent("Upload your syllabus above so AI can calculate your preparation forecast.");
                 return;
             }
 
             if (days > 0 && geminiApiService != null) {
-                if (examForecastText != null) examForecastText.setText("🤖 Calculating AI study forecast...");
+                setExamForecastContent("🤖 Calculating AI study forecast...");
                 final int fTotal = total;
                 final int fDone = done;
                 final long fDays = days;
                 geminiApiService.generateExamForecastAsync(course.getCourseTitle(), fTotal, fDone, remaining, fDays)
                         .thenAccept(advice -> Platform.runLater(() -> {
-                            if (examForecastText != null) {
-                                examForecastText.setText(advice);
-                            }
+                            setExamForecastContent(advice);
                         }))
                         .exceptionally(ex -> {
                             Platform.runLater(() -> {
-                                if (examForecastText != null) {
-                                    examForecastText.setText("Study ~" + String.format("%.1f", (double)(fTotal - fDone) / Math.max(1, fDays / 7.0)) + " topics per week to finish before your exam.");
-                                }
+                                setExamForecastContent("Study ~" + String.format("%.1f", (double)(fTotal - fDone) / Math.max(1, fDays / 7.0)) + " topics per week to finish before your exam.");
                             });
                             return null;
                         });
@@ -792,6 +792,41 @@ public class HelloController {
         } catch (Exception e) {
             if (examCountdownBadge != null) examCountdownBadge.setText(examDateStr);
         }
+    }
+
+    private void setExamForecastContent(String text) {
+        this.fullExamForecastText = (text != null) ? text : "";
+        this.isExamForecastExpanded = false;
+        renderExamForecast();
+    }
+
+    private void renderExamForecast() {
+        if (examForecastText == null) return;
+        if (fullExamForecastText == null || fullExamForecastText.length() <= 110) {
+            examForecastText.setText(fullExamForecastText != null ? fullExamForecastText : "");
+            if (examForecastToggleBtn != null) {
+                examForecastToggleBtn.setVisible(false);
+                examForecastToggleBtn.setManaged(false);
+            }
+        } else {
+            if (examForecastToggleBtn != null) {
+                examForecastToggleBtn.setVisible(true);
+                examForecastToggleBtn.setManaged(true);
+            }
+            if (isExamForecastExpanded) {
+                examForecastText.setText(fullExamForecastText);
+                if (examForecastToggleBtn != null) examForecastToggleBtn.setText("See Less ▴");
+            } else {
+                examForecastText.setText(fullExamForecastText.substring(0, 100) + "...");
+                if (examForecastToggleBtn != null) examForecastToggleBtn.setText("See More ▾");
+            }
+        }
+    }
+
+    @FXML
+    public void handleToggleExamForecastSeeMore() {
+        isExamForecastExpanded = !isExamForecastExpanded;
+        renderExamForecast();
     }
 
     @FXML
@@ -840,11 +875,28 @@ public class HelloController {
     @FXML
     public void handleUploadSyllabus() {
         if (currentSelectedCourse == null) return;
+        ContextMenu menu = new ContextMenu();
+        MenuItem addItem = new MenuItem("➕ Add Syllabus");
+        MenuItem deleteItem = new MenuItem("🗑️ Delete Syllabus");
+
+        addItem.setOnAction(e -> handleAddSyllabusFile());
+        deleteItem.setOnAction(e -> handleDeleteSyllabus());
+
+        menu.getItems().addAll(addItem, deleteItem);
+        menu.show(uploadSyllabusBtn, Side.BOTTOM, 0, 0);
+    }
+
+    private void handleAddSyllabusFile() {
+        if (currentSelectedCourse == null) return;
         FileChooser fc = new FileChooser();
-        fc.setTitle("Select Course Syllabus (PDF or Text)");
+        fc.setTitle("Select Course Syllabus (PDF, Doc, Image, PPTX, Text)");
         fc.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("Syllabus Files (*.pdf, *.txt, *.md)", "*.pdf", "*.txt", "*.md"),
+                new FileChooser.ExtensionFilter("All Supported Formats (*.pdf, *.png, *.jpg, *.jpeg, *.docx, *.pptx, *.txt, *.md)",
+                        "*.pdf", "*.png", "*.jpg", "*.jpeg", "*.docx", "*.pptx", "*.txt", "*.md"),
+                new FileChooser.ExtensionFilter("Pictures (*.png, *.jpg, *.jpeg)", "*.png", "*.jpg", "*.jpeg"),
                 new FileChooser.ExtensionFilter("PDF Documents (*.pdf)", "*.pdf"),
+                new FileChooser.ExtensionFilter("Word Documents (*.docx)", "*.docx"),
+                new FileChooser.ExtensionFilter("PowerPoint Presentations (*.pptx)", "*.pptx"),
                 new FileChooser.ExtensionFilter("Text Files (*.txt, *.md)", "*.txt", "*.md")
         );
         Stage stage = (progressView != null && progressView.getScene() != null)
@@ -856,15 +908,20 @@ public class HelloController {
             syllabusProgressSummaryLabel.setText("Extracting & parsing syllabus with AI...");
         }
 
-        CompletableFuture.supplyAsync(() -> {
-            try {
-                return QuizSourceHelper.readFileContent(file);
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to read file: " + e.getMessage(), e);
-            }
-        }).thenCompose(text -> {
-            return geminiApiService.parseSyllabusHierarchyAsync(text);
-        }).thenAccept(chapters -> Platform.runLater(() -> {
+        CompletableFuture<List<SyllabusChapter>> future;
+        if (QuizSourceHelper.isImageFile(file)) {
+            future = geminiApiService.parseSyllabusHierarchyFromImageAsync(file);
+        } else {
+            future = CompletableFuture.supplyAsync(() -> {
+                try {
+                    return QuizSourceHelper.readFileContent(file);
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to read file: " + e.getMessage(), e);
+                }
+            }).thenCompose(text -> geminiApiService.parseSyllabusHierarchyAsync(text));
+        }
+
+        future.thenAccept(chapters -> Platform.runLater(() -> {
             DatabaseHelper.saveSyllabusChapters(currentSelectedCourse.getId(), chapters);
             loadCourseSyllabusAndStats(currentSelectedCourse.getId());
             loadTermExamAndForecast(currentSelectedCourse);
@@ -877,6 +934,22 @@ public class HelloController {
                 alert.showAndWait();
             });
             return null;
+        });
+    }
+
+    private void handleDeleteSyllabus() {
+        if (currentSelectedCourse == null) return;
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Delete Syllabus");
+        confirm.setHeaderText("Delete syllabus for " + currentSelectedCourse.getCourseCode() + "?");
+        confirm.setContentText("This will remove all chapters and topics from your checklist. This action cannot be undone.");
+
+        confirm.showAndWait().ifPresent(res -> {
+            if (res == ButtonType.OK) {
+                DatabaseHelper.saveSyllabusChapters(currentSelectedCourse.getId(), Collections.emptyList());
+                loadCourseSyllabusAndStats(currentSelectedCourse.getId());
+                loadTermExamAndForecast(currentSelectedCourse);
+            }
         });
     }
 
@@ -906,8 +979,8 @@ public class HelloController {
     public void handleAddMarksDialog() {
         if (currentSelectedCourse == null) return;
         Dialog<AcademicMark> dialog = new Dialog<>();
-        dialog.setTitle("Add Assessment Marks");
-        dialog.setHeaderText("Enter assessment marks for " + currentSelectedCourse.getCourseCode());
+        dialog.setTitle("Add Marks");
+        dialog.setHeaderText("Enter marks for " + currentSelectedCourse.getCourseCode());
 
         ButtonType saveBtn = new ButtonType("Save Mark", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
@@ -918,16 +991,17 @@ public class HelloController {
         grid.setPadding(new Insets(15));
 
         ComboBox<String> typeCombo = new ComboBox<>();
-        typeCombo.getItems().addAll("CT", "CT Assignment", "Lab Test", "Lab Quiz", "Midterm");
+        typeCombo.getItems().addAll("CT", "Assignment", "Spot test", "Lab test", "Lab task", "Lab quiz");
         typeCombo.setValue("CT");
+        typeCombo.setEditable(true);
 
         TextField nameField = new TextField("CT 1");
         TextField obtainedField = new TextField("18.0");
         TextField totalField = new TextField("20.0");
 
-        grid.add(new Label("Assessment Type:"), 0, 0);
+        grid.add(new Label("Type:"), 0, 0);
         grid.add(typeCombo, 1, 0);
-        grid.add(new Label("Assessment Name:"), 0, 1);
+        grid.add(new Label("Name:"), 0, 1);
         grid.add(nameField, 1, 1);
         grid.add(new Label("Obtained Score:"), 0, 2);
         grid.add(obtainedField, 1, 2);
@@ -941,7 +1015,8 @@ public class HelloController {
                 try {
                     double obt = Double.parseDouble(obtainedField.getText().trim());
                     double tot = Double.parseDouble(totalField.getText().trim());
-                    return new AcademicMark(0, currentSelectedCourse.getId(), typeCombo.getValue(), nameField.getText().trim(), obt, tot, LocalDate.now().toString(), null);
+                    String typeVal = typeCombo.getValue() != null ? typeCombo.getValue().trim() : "CT";
+                    return new AcademicMark(0, currentSelectedCourse.getId(), typeVal, nameField.getText().trim(), obt, tot, LocalDate.now().toString(), null);
                 } catch (Exception ignored) {}
             }
             return null;

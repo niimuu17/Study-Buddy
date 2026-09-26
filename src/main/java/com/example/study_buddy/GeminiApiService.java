@@ -5,13 +5,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -425,6 +428,78 @@ public class GeminiApiService {
         String rawResponse = sendGeminiRequest(apiKey, jsonBody);
         String responseContent = extractContentText(rawResponse);
 
+        return parseSyllabusChaptersFromJson(responseContent);
+    }
+
+    /**
+     * Parses an uploaded syllabus image (document photo, whiteboard screenshot, or slide)
+     * using Gemini's multimodal vision API to extract structured chapters and topics.
+     */
+    public CompletableFuture<List<SyllabusChapter>> parseSyllabusHierarchyFromImageAsync(File imageFile) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return parseSyllabusHierarchyFromImage(imageFile);
+            } catch (Exception e) {
+                throw new RuntimeException(e.getMessage(), e);
+            }
+        });
+    }
+
+    public List<SyllabusChapter> parseSyllabusHierarchyFromImage(File imageFile) throws IOException, InterruptedException {
+        String apiKey = ApiKeyManager.getApiKey();
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            throw new IOException("Gemini API key is not configured. Please set your key in Settings.");
+        }
+
+        String prompt = "You are an expert academic curriculum parser. Look at this syllabus image (which may be a document photo, slide, textbook table of contents, or course outline) and extract the hierarchical chapters and their study topics.\n"
+                + "Return ONLY a valid JSON object matching this exact schema:\n"
+                + "{\n"
+                + "  \"chapters\": [\n"
+                + "    {\n"
+                + "      \"chapterNumber\": 1,\n"
+                + "      \"title\": \"Chapter Title\",\n"
+                + "      \"topics\": [\"Topic 1\", \"Topic 2\", \"Topic 3\"]\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}\n\n"
+                + "Guidelines:\n"
+                + "1. Number chapters sequentially starting from 1.\n"
+                + "2. Keep chapter titles and topic names concise, informative, and clean.\n"
+                + "3. Extract all core concepts, sections, or topics found in the image.";
+
+        byte[] imageBytes = Files.readAllBytes(imageFile.toPath());
+        String mimeType = QuizSourceHelper.getImageMimeType(imageFile);
+
+        String jsonBody = buildGeminiImageRequestBody(prompt, imageBytes, mimeType);
+        String rawResponse = sendGeminiRequest(apiKey, jsonBody);
+        String responseContent = extractContentText(rawResponse);
+
+        return parseSyllabusChaptersFromJson(responseContent);
+    }
+
+    private String buildGeminiImageRequestBody(String promptText, byte[] imageBytes, String mimeType) throws IOException {
+        ObjectNode root = objectMapper.createObjectNode();
+
+        ArrayNode contents = root.putArray("contents");
+        ObjectNode content = contents.addObject();
+        ArrayNode parts = content.putArray("parts");
+
+        ObjectNode textPart = parts.addObject();
+        textPart.put("text", promptText);
+
+        ObjectNode inlineDataPart = parts.addObject();
+        ObjectNode inlineData = inlineDataPart.putObject("inlineData");
+        inlineData.put("mimeType", mimeType);
+        inlineData.put("data", Base64.getEncoder().encodeToString(imageBytes));
+
+        ObjectNode genConfig = root.putObject("generationConfig");
+        genConfig.put("responseMimeType", "application/json");
+        genConfig.put("temperature", 0.2);
+
+        return objectMapper.writeValueAsString(root);
+    }
+
+    private List<SyllabusChapter> parseSyllabusChaptersFromJson(String responseContent) throws IOException {
         List<SyllabusChapter> chapters = new ArrayList<>();
         JsonNode root = objectMapper.readTree(responseContent);
         JsonNode chapArray = root.path("chapters");
@@ -450,7 +525,6 @@ public class GeminiApiService {
         }
 
         if (chapters.isEmpty()) {
-            // Fallback default chapter if parsing returned no items
             SyllabusChapter defaultChapter = new SyllabusChapter(1, "General Syllabus");
             defaultChapter.getTopics().add(new SyllabusTopic("Core Syllabus Content"));
             chapters.add(defaultChapter);

@@ -328,7 +328,7 @@
                             <Label fx:id="progressCourseSubtitle" text="Syllabus tracking &amp; assessment performance" style="-fx-font-size: 11px; -fx-text-fill: #64748b;" />
                         </VBox>
                         <Region HBox.hgrow="ALWAYS" />
-                        <Button fx:id="uploadSyllabusBtn" onAction="#handleUploadSyllabus" styleClass="btn-secondary-action" text="📄 Upload Syllabus (PDF/TXT)" />
+                        <Button fx:id="uploadSyllabusBtn" onAction="#handleUploadSyllabus" styleClass="btn-secondary-action" text="📄 Syllabus ▾" />
                         <Button fx:id="setTermExamBtn" onAction="#handleSetTermExamDate" styleClass="btn-secondary-action" text="📅 Set Term Exam Date" />
                         <Button fx:id="addMarksBtn" onAction="#handleAddMarksDialog" styleClass="btn-primary" text="➕ Add Marks" />
                     </HBox>
@@ -361,7 +361,7 @@
                             <!-- Card 1: Assessment Marks Summary -->
                             <VBox spacing="8.0" style="-fx-background-color: #ffffff; -fx-padding: 14px; -fx-background-radius: 8px; -fx-border-color: #e2e8f0; -fx-border-radius: 8px;">
                                 <HBox alignment="CENTER_LEFT" spacing="8.0">
-                                    <Label text="📝 Assessment Marks" style="-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" />
+                                    <Label text="📝 Marks" style="-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" />
                                     <Region HBox.hgrow="ALWAYS" />
                                     <Label fx:id="marksAverageLabel" text="Avg: 0%" style="-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #059669;" />
                                 </HBox>
@@ -379,11 +379,12 @@
                             <!-- Card 3: AI Term Exam Strategy Forecast -->
                             <VBox spacing="8.0" style="-fx-background-color: #eef2ff; -fx-padding: 12px 14px; -fx-background-radius: 8px; -fx-border-color: #c7d2fe; -fx-border-radius: 8px;">
                                 <HBox alignment="CENTER_LEFT" spacing="6.0">
-                                    <Label text="🤖 AI Term Exam Forecast" style="-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #3730a3;" />
+                                    <Label text="🤖 Term exam Forecast" style="-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #3730a3;" />
                                     <Region HBox.hgrow="ALWAYS" />
                                     <Label fx:id="examCountdownBadge" text="No Exam Set" style="-fx-font-size: 10px; -fx-font-weight: bold; -fx-background-color: #e0e7ff; -fx-text-fill: #4338ca; -fx-padding: 2px 6px; -fx-background-radius: 4px;" />
                                 </HBox>
                                 <Label fx:id="examForecastText" wrapText="true" text="Set a Term Exam date to generate your personalized AI study pace forecast." style="-fx-font-size: 11px; -fx-text-fill: #475569; -fx-line-spacing: 2px;" />
+                                <Button fx:id="examForecastToggleBtn" onAction="#handleToggleExamForecastSeeMore" styleClass="quiz-see-more-btn" text="See More ▾" visible="false" managed="false" />
                             </VBox>
                         </VBox>
                     </HBox>
