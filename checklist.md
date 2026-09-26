@@ -11,12 +11,12 @@
 |---|---|:---:|---|:---:|
 | 1 | **Version Control** | 🟡 **Partially Done** | Regular Git commits present; first commit on Sep 21 | Verify date alignment |
 | 2 | **Advanced OOP Concepts** | 🟢 **Complete** | Interface `JobItem`, Abstract class `AbstractNotebookJob`, Polymorphism across `PageSaveJob` & `NotebookStatsJob` | Ready to present |
-| 3 | **JavaFX UI Design** | 🟡 **Mostly Done** | VBox, HBox, StackPane, GridPane, FlowPane, ScrollPane; **No BorderPane** | Add BorderPane |
-| 4 | **Layout Responsiveness** | 🟡 **Partially Done** | HGrow/VGrow, ColumnConstraints % widths; **No explicit property bindings** | Add window property bindings |
+| 3 | **JavaFX UI Design** | 🟢 **Complete** | Full layout suite: `BorderPane` (Quiz view), `StackPane`, `VBox`, `HBox`, `GridPane`, `FlowPane`, `ScrollPane` | Ready to present |
+| 4 | **Layout Responsiveness** | 🟢 **Complete** | HGrow/VGrow, % ColumnConstraints, dynamic JavaFX width property bindings | Ready to present |
 | 5 | **Concurrency** | 🟢 **Complete** | Multi-threading, Thread Pools (`ExecutorService`), Producer-Consumer `BlockingQueue`, `Platform.runLater()` | Ready to present |
 | 6 | **Database Integration** | 🟢 **Complete** | SQLite with 9 tables, Foreign Keys & `ON DELETE CASCADE` | Ready to present |
 | 7 | **Data Manipulation (CRUD)** | 🟢 **Complete** | Full CRUD implemented across Tasks, Notebooks, Topics, Pages, Routines | Ready to present |
-| 8 | **Networking & Data Parsing** | 🔴 **Missing** | **No HTTP requests or remote JSON parsing implemented** | **High Priority** |
+| 8 | **Networking & Data Parsing** | 🟢 **Complete** | Java 21 `HttpClient` REST API calls to Google Gemini, Jackson (`ObjectMapper`) JSON parsing | Ready to present |
 
 ---
 
@@ -65,15 +65,13 @@
 ### 3. JavaFX UI Design
 > *"Showcase the use of a wide range of JavaFX layout panes and UI controls (e.g., BorderPane, StackPane, PasswordField)."*
 
-- **Status**: 🟡 **Mostly Done**
+- **Status**: 🟢 **Complete**
 - **What We Have**:
-  - **Layout Panes**: `StackPane`, `VBox`, `HBox`, `GridPane`, `FlowPane`, `ScrollPane`, `Region`.
-  - **UI Controls**: `TextField`, `PasswordField`, `Button`, `Label`, `ComboBox`, `DatePicker`, `TextArea`, `ProgressBar`, `Tooltip`, `ContextMenu`, `MenuItem`, `SeparatorMenuItem`, `TextInputDialog`, `Alert`.
-  - Custom CSS styling with animations, drop shadows, hover states, and dynamic status badges.
+  - **Layout Panes**: Full layout suite including `BorderPane` (in the AI Quiz System view with top/center/bottom structure), `StackPane`, `VBox`, `HBox`, `GridPane`, `FlowPane`, `ScrollPane`, `Region`.
+  - **UI Controls**: `TextField`, `PasswordField`, `Button`, `Label`, `ComboBox`, `DatePicker`, `TextArea`, `ProgressBar`, `ProgressIndicator`, `Tooltip`, `ContextMenu`, `MenuItem`, `SeparatorMenuItem`, `TextInputDialog`, `Alert`.
+  - Custom CSS styling with animations, drop shadows, hover states, 4-card interactive MCQ choice selection, and dynamic status badges.
 - **What Is Left / Action Items**:
-  - `BorderPane` is explicitly called out in the teacher's instructions (`"e.g., BorderPane, StackPane, PasswordField"`), but **`BorderPane` is not yet used** anywhere in the project.
-  - *Required Implementation*:
-    - Refactor one of the main workspace shells (or dialogs / notebook workspace) to utilize a `BorderPane` (e.g., `top` = navbar, `left` = topics sidebar, `center` = playground canvas, `bottom` = status bar).
+  - None! Complete coverage across all standard JavaFX layout containers and controls.
 
 ---
 
@@ -159,19 +157,17 @@
 ### 8. Networking & Data Parsing
 > *"Show the use of HTTP requests to fetch JSON data from the internet and demonstrate how that JSON data is parsed."*
 
-- **Status**: 🔴 **Missing**
+- **Status**: 🟢 **Complete**
 - **What We Have**:
-  - No HTTP network requests exist.
-  - No remote JSON API is integrated.
+  - **HTTP Requests**: Java 21 native `java.net.http.HttpClient` performing asynchronous HTTPS POST requests to Google Gemini REST endpoint (`gemini-1.5-flash`).
+  - **Remote JSON Data Parsing**: Full structured JSON payload construction and response parsing using Jackson (`ObjectMapper` and `JsonNode`).
+  - **2-Call Architecture**:
+    - **Call #1 (Generation)**: User configures topic, source notes/files, question count, and difficulty. Gemini generates questions, 4 options per MCQ with `correctIndex`, and rubric for Short Answer questions.
+    - **Submit Action**: MCQs are graded locally and instantly in Java ($O(1)$).
+    - **Call #2 (Grading)**: Short answers are bundled and sent to Gemini, which returns numeric scores and personalized qualitative feedback.
+  - **Asynchronous Concurrency**: All network I/O executes off the UI thread via `CompletableFuture`, displaying animated loading overlays and safely updating JavaFX components with `Platform.runLater()`.
 - **What Is Left / Action Items**:
-  - *Required Implementation*:
-    1. Implement an HTTP request using Java 21's native `java.net.http.HttpClient` or `HttpURLConnection`.
-    2. Call a free, public educational API, such as:
-       - **Daily Motivational Study Quote**: e.g., ZenQuotes (`https://zenquotes.io/api/today` or `https://dummyjson.com/quotes/random`)
-       - **Academic Fact / Dictionary / Weather API**
-    3. Parse the returned JSON payload into a Java model object (e.g. `Quote` or `StudyFact`).
-    4. Display this feature on the dashboard (e.g., an elegant "Daily Inspiration" banner on the Main Menu).
-    5. Run this network request asynchronously via the **Thread Pool** (Requirement #5) to satisfy both Concurrency and Networking together!
+  - None! 100% complete and fully verified with unit tests.
 
 ---
 

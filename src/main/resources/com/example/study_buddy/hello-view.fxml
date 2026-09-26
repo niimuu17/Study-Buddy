@@ -4,7 +4,10 @@
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ProgressIndicator?>
 <?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.FlowPane?>
 <?import javafx.scene.layout.GridPane?>
 <?import javafx.scene.layout.HBox?>
@@ -55,6 +58,7 @@
                 <Button fx:id="navHomeBtn" alignment="BASELINE_LEFT" maxWidth="Infinity" onAction="#handleOpenMainMenu" styleClass="nav-item" text="🏠  Main Menu" />
                 <Button fx:id="navRoutineBtn" alignment="BASELINE_LEFT" maxWidth="Infinity" onAction="#handleOpenRoutine" styleClass="nav-item" text="📅  Class Routine" />
                 <Button fx:id="navCalendarBtn" alignment="BASELINE_LEFT" maxWidth="Infinity" onAction="#handleOpenCalendar" styleClass="nav-item" text="🗓️  Calendar" />
+                <Button fx:id="navQuizBtn" alignment="BASELINE_LEFT" maxWidth="Infinity" onAction="#handleOpenQuiz" styleClass="nav-item" text="🧠  Quiz" />
             </VBox>
 
             <!-- Bottom Section: Logout Button -->
@@ -74,6 +78,8 @@
                     <Label text="Recent notebooks" style="-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" />
                     <Button fx:id="myNotebooksBtn" onAction="#handleMyNotebooks" styleClass="btn-secondary-action" text="📚 My Notebooks" />
                     <Button fx:id="newNotebookBtn" onAction="#handleNewNotebook" styleClass="btn-primary" text="+ New Notebook" />
+                    <Region HBox.hgrow="ALWAYS" />
+                    <Button fx:id="quickQuizBtn" onAction="#handleOpenQuiz" styleClass="btn-secondary-action" text="🧠 AI Quiz" />
                 </HBox>
 
                 <!-- Notebooks Scrollable Content Area -->
@@ -170,6 +176,123 @@
                     </VBox>
                 </HBox>
             </VBox>
+
+            <!-- View 5: AI Quiz System (Built using BorderPane for Teacher Requirement #3) -->
+            <BorderPane fx:id="quizView" visible="false" managed="false"
+                        style="-fx-background-color: #ffffff; -fx-padding: 20px; -fx-background-radius: 10px; -fx-border-color: #cbd5e1; -fx-border-radius: 10px;">
+                
+                <!-- TOP: Header, navigation and action controls -->
+                <top>
+                    <HBox alignment="CENTER_LEFT" spacing="14.0" style="-fx-padding: 0 0 14px 0; -fx-border-color: #e2e8f0; -fx-border-width: 0 0 1px 0;">
+                        <Button onAction="#handleBackFromQuiz" styleClass="btn-secondary-action" text="◀ Back to Main Menu" />
+                        <VBox spacing="2.0">
+                            <Label fx:id="quizHeaderTitle" text="🧠 AI Study Quiz" style="-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" />
+                            <Label fx:id="quizHeaderSubtitle" text="Test your knowledge with AI-generated MCQs and short answer evaluations" style="-fx-font-size: 11px; -fx-text-fill: #64748b;" />
+                        </VBox>
+                        <Region HBox.hgrow="ALWAYS" />
+                        <Button fx:id="quizApiKeyBtn" onAction="#handleOpenApiKeyDialog" styleClass="btn-secondary-action" text="⚙️ API Key" />
+                        <Button fx:id="quizResetBtn" onAction="#handleResetQuiz" styleClass="btn-secondary-action" text="🔄 New Quiz" />
+                    </HBox>
+                </top>
+
+                <!-- CENTER: Viewport hosting Setup, Active Questions, or Loading Spinner -->
+                <center>
+                    <StackPane fx:id="quizCenterStack" style="-fx-padding: 8px 0;">
+                        
+                        <!-- Screen 1: Quiz Configuration & Sources Setup -->
+                        <ScrollPane fx:id="quizSetupScroll" fitToWidth="true" fitToHeight="true"
+                                    style="-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent;">
+                            <VBox alignment="TOP_CENTER" spacing="18.0" style="-fx-padding: 10px 16px;">
+                                
+                                <!-- Card A: Upload Sources Section -->
+                                <VBox spacing="10.0" style="-fx-background-color: #f8fafc; -fx-padding: 16px; -fx-background-radius: 8px; -fx-border-color: #e2e8f0; -fx-border-radius: 8px;">
+                                    <Label text="📁 1. Source Material (Optional)" style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" />
+                                    <Label text="Upload notes or select a page from your Study Buddy notebooks to generate questions from." style="-fx-font-size: 12px; -fx-text-fill: #64748b;" />
+                                    
+                                    <HBox alignment="CENTER_LEFT" spacing="12.0">
+                                        <Button onAction="#handleUploadSourceFile" styleClass="btn-secondary-action" text="📎 Upload File (.txt, .md, code)" />
+                                        <Label text="or" style="-fx-font-size: 12px; -fx-text-fill: #94a3b8;" />
+                                        <ComboBox fx:id="quizNotebookPageSelect" promptText="📚 Select Notebook Page..." prefWidth="250.0" />
+                                    </HBox>
+
+                                    <!-- Chip showing active source -->
+                                    <HBox fx:id="sourceFileChip" alignment="CENTER_LEFT" spacing="8.0" visible="false" managed="false"
+                                          style="-fx-background-color: #e0e7ff; -fx-padding: 6px 12px; -fx-background-radius: 6px;">
+                                        <Label fx:id="sourceFileLabel" text="📄 notes.txt" style="-fx-font-size: 12px; -fx-text-fill: #4338ca; -fx-font-weight: bold;" />
+                                        <Region HBox.hgrow="ALWAYS" />
+                                        <Button onAction="#handleRemoveSourceFile" style="-fx-background-color: transparent; -fx-text-fill: #4338ca; -fx-font-weight: bold; -fx-cursor: hand;" text="✕ Clear" />
+                                    </HBox>
+                                </VBox>
+
+                                <!-- Card B: Customization Controls -->
+                                <VBox spacing="12.0" style="-fx-background-color: #f8fafc; -fx-padding: 16px; -fx-background-radius: 8px; -fx-border-color: #e2e8f0; -fx-border-radius: 8px;">
+                                    <Label text="⚙️ 2. Quiz Configuration" style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" />
+                                    
+                                    <HBox alignment="CENTER_LEFT" spacing="20.0">
+                                        <VBox spacing="4.0">
+                                            <Label text="Number of Questions" style="-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #475569;" />
+                                            <ComboBox fx:id="quizNumQuestionsCombo" prefWidth="120.0" />
+                                        </VBox>
+
+                                        <VBox spacing="4.0">
+                                            <Label text="Difficulty Level" style="-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #475569;" />
+                                            <ComboBox fx:id="quizDifficultyCombo" prefWidth="130.0" />
+                                        </VBox>
+
+                                        <VBox spacing="4.0">
+                                            <Label text="Question Types" style="-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #475569;" />
+                                            <ComboBox fx:id="quizTypeCombo" prefWidth="210.0" />
+                                        </VBox>
+                                    </HBox>
+                                </VBox>
+
+                                <!-- Card C: Custom Topic / Prompt -->
+                                <VBox spacing="8.0" style="-fx-background-color: #f8fafc; -fx-padding: 16px; -fx-background-radius: 8px; -fx-border-color: #e2e8f0; -fx-border-radius: 8px;">
+                                    <Label text="✍️ 3. Topic &amp; Special Focus" style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1e293b;" />
+                                    <Label text="Describe the subject or give specific instructions (e.g. 'Focus on graph algorithms and asymptotic notation')." style="-fx-font-size: 12px; -fx-text-fill: #64748b;" />
+                                    <TextArea fx:id="quizCustomPromptArea" prefRowCount="3" promptText="Enter topic or prompt..."
+                                              style="-fx-background-color: #ffffff; -fx-border-color: #cbd5e1; -fx-border-radius: 6px; -fx-background-radius: 6px;" />
+                                </VBox>
+
+                                <!-- Card D: Generate Quiz Button -->
+                                <HBox alignment="CENTER" style="-fx-padding: 6px 0;">
+                                    <Button fx:id="generateQuizBtn" onAction="#handleGenerateQuiz" styleClass="btn-primary"
+                                            style="-fx-font-size: 14px; -fx-padding: 10px 28px;" text="🚀 Generate Quiz with AI" />
+                                </HBox>
+
+                            </VBox>
+                        </ScrollPane>
+
+                        <!-- Screen 2: Active Questions Viewport -->
+                        <ScrollPane fx:id="quizActiveScroll" fitToWidth="true" fitToHeight="true" visible="false" managed="false"
+                                    style="-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent;">
+                            <VBox fx:id="quizQuestionsContainer" spacing="20.0" style="-fx-padding: 10px 16px;">
+                                <!-- Populated dynamically with MCQ 4-card grids and Short Answer text boxes -->
+                            </VBox>
+                        </ScrollPane>
+
+                        <!-- Screen 3: Asynchronous Loading Overlay -->
+                        <VBox fx:id="quizLoadingOverlay" alignment="CENTER" spacing="12.0" visible="false" managed="false"
+                              style="-fx-background-color: rgba(255, 255, 255, 0.94); -fx-background-radius: 10px; -fx-padding: 40px;">
+                            <ProgressIndicator fx:id="quizProgressIndicator" prefHeight="48.0" prefWidth="48.0" />
+                            <Label fx:id="quizLoadingLabel" text="AI is crafting your quiz..." style="-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #4338ca;" />
+                            <Label fx:id="quizLoadingSubLabel" text="Fetching questions and formulating choices..." style="-fx-font-size: 12px; -fx-text-fill: #64748b;" />
+                        </VBox>
+
+                    </StackPane>
+                </center>
+
+                <!-- BOTTOM: Progress & Submission Action Bar -->
+                <bottom>
+                    <HBox fx:id="quizBottomBar" alignment="CENTER_LEFT" spacing="14.0"
+                          style="-fx-padding: 12px 0 0 0; -fx-border-color: #e2e8f0; -fx-border-width: 1px 0 0 0;">
+                        <Label fx:id="quizProgressLabel" text="Ready to create quiz" style="-fx-font-size: 12px; -fx-text-fill: #64748b;" />
+                        <Region HBox.hgrow="ALWAYS" />
+                        <Button fx:id="quizSubmitBtn" onAction="#handleSubmitQuiz" styleClass="btn-primary" text="📤 Submit Quiz" visible="false" managed="false" />
+                    </HBox>
+                </bottom>
+
+            </BorderPane>
         </StackPane>
 
         <!-- Right Sidebar (Tasks & Deadlines, Collapsible with smooth animation, closed by default) -->

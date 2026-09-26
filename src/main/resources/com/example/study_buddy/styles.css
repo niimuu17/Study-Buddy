@@ -502,6 +502,118 @@
     -fx-text-fill: #1e293b;
 }
 
+/* ==========================================================================
+   AI Quiz System Styles
+   ========================================================================== */
+
+.quiz-question-card {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 10px;
+    -fx-border-color: #e2e8f0;
+    -fx-border-radius: 10px;
+    -fx-border-width: 1px;
+    -fx-padding: 20px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.03), 8, 0, 0, 2);
+}
+
+.quiz-badge {
+    -fx-background-color: #e0e7ff;
+    -fx-text-fill: #4338ca;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 12px;
+    -fx-padding: 3px 10px;
+}
+
+.quiz-mcq-card {
+    -fx-background-color: #f8fafc;
+    -fx-background-radius: 8px;
+    -fx-border-color: #cbd5e1;
+    -fx-border-radius: 8px;
+    -fx-border-width: 1.5px;
+    -fx-padding: 12px 14px;
+    -fx-cursor: hand;
+}
+
+.quiz-mcq-card:hover {
+    -fx-background-color: #f1f5f9;
+    -fx-border-color: #94a3b8;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.05), 4, 0, 0, 1);
+}
+
+.quiz-mcq-card-selected {
+    -fx-background-color: #eef2ff;
+    -fx-background-radius: 8px;
+    -fx-border-color: #4f46e5;
+    -fx-border-radius: 8px;
+    -fx-border-width: 2px;
+    -fx-padding: 12px 14px;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(three-pass-box, rgba(79, 70, 229, 0.15), 6, 0, 0, 2);
+}
+
+.quiz-mcq-card-correct {
+    -fx-background-color: #ecfdf5;
+    -fx-background-radius: 8px;
+    -fx-border-color: #10b981;
+    -fx-border-radius: 8px;
+    -fx-border-width: 2px;
+    -fx-padding: 12px 14px;
+}
+
+.quiz-mcq-card-incorrect {
+    -fx-background-color: #fef2f2;
+    -fx-background-radius: 8px;
+    -fx-border-color: #ef4444;
+    -fx-border-radius: 8px;
+    -fx-border-width: 2px;
+    -fx-padding: 12px 14px;
+}
+
+.quiz-option-letter {
+    -fx-background-color: #e2e8f0;
+    -fx-text-fill: #475569;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+    -fx-background-radius: 6px;
+    -fx-padding: 4px 8px;
+    -fx-alignment: center;
+}
+
+.quiz-option-letter-selected {
+    -fx-background-color: #4f46e5;
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+    -fx-background-radius: 6px;
+    -fx-padding: 4px 8px;
+    -fx-alignment: center;
+}
+
+.quiz-result-banner {
+    -fx-background-color: linear-gradient(to right, #4338ca, #6366f1);
+    -fx-background-radius: 12px;
+    -fx-padding: 24px;
+    -fx-effect: dropshadow(three-pass-box, rgba(67, 56, 202, 0.25), 12, 0, 0, 4);
+}
+
+.quiz-feedback-box {
+    -fx-background-color: #f0fdf4;
+    -fx-background-radius: 8px;
+    -fx-border-color: #bbf7d0;
+    -fx-border-radius: 8px;
+    -fx-padding: 12px 14px;
+}
+
+.quiz-explanation-box {
+    -fx-background-color: #f8fafc;
+    -fx-background-radius: 8px;
+    -fx-border-color: #e2e8f0;
+    -fx-border-radius: 8px;
+    -fx-padding: 10px 14px;
+}
+
+
 
 
 

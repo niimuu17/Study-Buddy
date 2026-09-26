@@ -1,5 +1,6 @@
 package com.example.study_buddy;
 
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Insets;
@@ -73,6 +74,40 @@ public class HelloController {
     @FXML private Button navHomeBtn;
     @FXML private Button navRoutineBtn;
     @FXML private Button navCalendarBtn;
+    @FXML private Button navQuizBtn;
+    @FXML private Button quickQuizBtn;
+
+    // AI Quiz Components (Built using BorderPane for Teacher Requirement #3)
+    @FXML private BorderPane quizView;
+    @FXML private Label quizHeaderTitle;
+    @FXML private Label quizHeaderSubtitle;
+    @FXML private Button quizApiKeyBtn;
+    @FXML private Button quizResetBtn;
+    @FXML private StackPane quizCenterStack;
+    @FXML private ScrollPane quizSetupScroll;
+    @FXML private ScrollPane quizActiveScroll;
+    @FXML private VBox quizQuestionsContainer;
+    @FXML private VBox quizLoadingOverlay;
+    @FXML private ProgressIndicator quizProgressIndicator;
+    @FXML private Label quizLoadingLabel;
+    @FXML private Label quizLoadingSubLabel;
+    @FXML private HBox sourceFileChip;
+    @FXML private Label sourceFileLabel;
+    @FXML private ComboBox<String> quizNotebookPageSelect;
+    @FXML private ComboBox<Integer> quizNumQuestionsCombo;
+    @FXML private ComboBox<String> quizDifficultyCombo;
+    @FXML private ComboBox<String> quizTypeCombo;
+    @FXML private TextArea quizCustomPromptArea;
+    @FXML private Button generateQuizBtn;
+    @FXML private HBox quizBottomBar;
+    @FXML private Label quizProgressLabel;
+    @FXML private Button quizSubmitBtn;
+
+    private QuizSession currentQuizSession = null;
+    private File uploadedQuizFile = null;
+    private String uploadedQuizFileContent = "";
+    private final GeminiApiService geminiApiService = new GeminiApiService();
+    private final List<Page> availableQuizPages = new ArrayList<>();
 
     // Notebooks (Main Menu)
     @FXML private Button myNotebooksBtn;
@@ -173,6 +208,7 @@ public class HelloController {
                 }
             });
         }
+        setupQuizViewDefaults();
         handleOpenMainMenu();
     }
 
@@ -200,6 +236,10 @@ public class HelloController {
         if (notebookWorkspaceView != null) {
             notebookWorkspaceView.setVisible(false);
             notebookWorkspaceView.setManaged(false);
+        }
+        if (quizView != null) {
+            quizView.setVisible(false);
+            quizView.setManaged(false);
         }
         if (rightToggleBtn != null) {
             rightToggleBtn.setVisible(true);
@@ -233,6 +273,10 @@ public class HelloController {
             notebookWorkspaceView.setVisible(false);
             notebookWorkspaceView.setManaged(false);
         }
+        if (quizView != null) {
+            quizView.setVisible(false);
+            quizView.setManaged(false);
+        }
         if (rightToggleBtn != null) {
             rightToggleBtn.setVisible(false);
             rightToggleBtn.setManaged(false);
@@ -264,6 +308,10 @@ public class HelloController {
             notebookWorkspaceView.setVisible(false);
             notebookWorkspaceView.setManaged(false);
         }
+        if (quizView != null) {
+            quizView.setVisible(false);
+            quizView.setManaged(false);
+        }
         if (calendarView != null) {
             calendarView.setVisible(true);
             calendarView.setManaged(true);
@@ -289,6 +337,9 @@ public class HelloController {
         if (navCalendarBtn != null) {
             navCalendarBtn.getStyleClass().remove("nav-item-active");
         }
+        if (navQuizBtn != null) {
+            navQuizBtn.getStyleClass().remove("nav-item-active");
+        }
         if (activeButton != null && !activeButton.getStyleClass().contains("nav-item-active")) {
             activeButton.getStyleClass().add("nav-item-active");
         }
@@ -300,6 +351,633 @@ public class HelloController {
     @FXML
     public void handleMyNotebooks() {
         loadNotebooks();
+    }
+
+    /**
+     * Initializes default options and items for the AI Quiz configuration panels.
+     */
+    private void setupQuizViewDefaults() {
+        if (quizNumQuestionsCombo != null) {
+            quizNumQuestionsCombo.getItems().setAll(3, 5, 8, 10, 15);
+            quizNumQuestionsCombo.setValue(5);
+        }
+        if (quizDifficultyCombo != null) {
+            quizDifficultyCombo.getItems().setAll("Easy", "Medium", "Hard");
+            quizDifficultyCombo.setValue("Medium");
+        }
+        if (quizTypeCombo != null) {
+            quizTypeCombo.getItems().setAll("Both (MCQ + Short Answer)", "MCQ Only", "Short Answer Only");
+            quizTypeCombo.setValue("Both (MCQ + Short Answer)");
+        }
+    }
+
+    /**
+     * Switches center workspace to the AI Quiz System (BorderPane layout).
+     */
+    @FXML
+    public void handleOpenQuiz() {
+        if (appTopBar != null) {
+            appTopBar.setVisible(true);
+            appTopBar.setManaged(true);
+        }
+        if (mainMenuView != null) {
+            mainMenuView.setVisible(false);
+            mainMenuView.setManaged(false);
+        }
+        if (routineView != null) {
+            routineView.setVisible(false);
+            routineView.setManaged(false);
+        }
+        if (calendarView != null) {
+            calendarView.setVisible(false);
+            calendarView.setManaged(false);
+        }
+        if (notebookWorkspaceView != null) {
+            notebookWorkspaceView.setVisible(false);
+            notebookWorkspaceView.setManaged(false);
+        }
+        if (quizView != null) {
+            quizView.setVisible(true);
+            quizView.setManaged(true);
+        }
+        if (rightToggleBtn != null) {
+            rightToggleBtn.setVisible(false);
+            rightToggleBtn.setManaged(false);
+        }
+        if (isRightSidebarOpen) {
+            handleToggleRight();
+        }
+        updateNavActiveState(navQuizBtn);
+        populateQuizNotebookPages();
+    }
+
+    /**
+     * Returns from Quiz view to Main Menu dashboard.
+     */
+    @FXML
+    public void handleBackFromQuiz() {
+        handleOpenMainMenu();
+    }
+
+    /**
+     * Opens the Gemini API Key configuration modal.
+     */
+    @FXML
+    public void handleOpenApiKeyDialog() {
+        Stage stage = (quizView != null && quizView.getScene() != null)
+                ? (Stage) quizView.getScene().getWindow() : null;
+        ApiKeyDialog.show(stage, () -> {
+            // Callback when key is saved
+        });
+    }
+
+    /**
+     * Populates the notebook page dropdown with pages from user's notebooks.
+     */
+    private void populateQuizNotebookPages() {
+        if (quizNotebookPageSelect == null || currentUser == null) return;
+        quizNotebookPageSelect.getItems().clear();
+        availableQuizPages.clear();
+
+        List<Notebook> notebooks = DatabaseHelper.getUserNotebooks(currentUser.getId());
+        for (Notebook nb : notebooks) {
+            List<Topic> topics = DatabaseHelper.getTopicsByNotebook(nb.getId());
+            for (Topic tp : topics) {
+                List<Page> pages = DatabaseHelper.getPagesByTopic(tp.getId());
+                for (Page pg : pages) {
+                    availableQuizPages.add(pg);
+                    quizNotebookPageSelect.getItems().add(nb.getTitle() + " → " + tp.getTitle() + " → " + pg.getTitle());
+                }
+            }
+        }
+    }
+
+    /**
+     * Opens file chooser to upload source notes/document.
+     */
+    @FXML
+    public void handleUploadSourceFile() {
+        Stage stage = (quizView != null && quizView.getScene() != null)
+                ? (Stage) quizView.getScene().getWindow() : null;
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Choose Study Notes / Source File");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Text & Code Files (*.txt, *.md, *.java, *.py, *.json)", "*.txt", "*.md", "*.java", "*.py", "*.json", "*.c", "*.cpp", "*.html", "*.css"),
+                new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
+        );
+        File chosen = fileChooser.showOpenDialog(stage);
+        if (chosen != null) {
+            try {
+                String content = QuizSourceHelper.readFileContent(chosen);
+                if (content.trim().isEmpty()) {
+                    showError("Empty File", "The selected file contains no readable text.");
+                    return;
+                }
+                this.uploadedQuizFile = chosen;
+                this.uploadedQuizFileContent = content;
+                if (sourceFileLabel != null) {
+                    sourceFileLabel.setText(QuizSourceHelper.formatSourceSummary("📄 " + chosen.getName(), content));
+                }
+                if (sourceFileChip != null) {
+                    sourceFileChip.setVisible(true);
+                    sourceFileChip.setManaged(true);
+                }
+                if (quizNotebookPageSelect != null) {
+                    quizNotebookPageSelect.getSelectionModel().clearSelection();
+                }
+            } catch (IOException e) {
+                showError("File Read Error", "Could not read file: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Removes active source file.
+     */
+    @FXML
+    public void handleRemoveSourceFile() {
+        this.uploadedQuizFile = null;
+        this.uploadedQuizFileContent = "";
+        if (sourceFileChip != null) {
+            sourceFileChip.setVisible(false);
+            sourceFileChip.setManaged(false);
+        }
+    }
+
+    /**
+     * Call #1: Generates quiz questions using Gemini API asynchronously.
+     */
+    @FXML
+    public void handleGenerateQuiz() {
+        if (!ApiKeyManager.hasApiKey()) {
+            showAlert("API Key Required", "Please configure your Google Gemini API Key first.");
+            handleOpenApiKeyDialog();
+            if (!ApiKeyManager.hasApiKey()) return;
+        }
+
+        // Determine source text
+        String sourceText = "";
+        if (uploadedQuizFile != null && !uploadedQuizFileContent.trim().isEmpty()) {
+            sourceText = uploadedQuizFileContent;
+        } else if (quizNotebookPageSelect != null && quizNotebookPageSelect.getSelectionModel().getSelectedIndex() >= 0) {
+            int selIdx = quizNotebookPageSelect.getSelectionModel().getSelectedIndex();
+            if (selIdx >= 0 && selIdx < availableQuizPages.size()) {
+                Page pg = availableQuizPages.get(selIdx);
+                sourceText = QuizSourceHelper.extractPageContent(pg);
+            }
+        }
+
+        String prompt = (quizCustomPromptArea != null) ? quizCustomPromptArea.getText().trim() : "";
+
+        if (sourceText.isEmpty() && prompt.isEmpty()) {
+            showError("Missing Information",
+                    "Please provide a topic or select/upload source material to generate the quiz.");
+            return;
+        }
+
+        int numQuestions = (quizNumQuestionsCombo != null && quizNumQuestionsCombo.getValue() != null)
+                ? quizNumQuestionsCombo.getValue() : 5;
+        String difficulty = (quizDifficultyCombo != null && quizDifficultyCombo.getValue() != null)
+                ? quizDifficultyCombo.getValue() : "Medium";
+        String typeMode = (quizTypeCombo != null && quizTypeCombo.getValue() != null)
+                ? quizTypeCombo.getValue() : "Both";
+
+        if (quizLoadingLabel != null) {
+            quizLoadingLabel.setText("AI is crafting your quiz...");
+        }
+        if (quizLoadingSubLabel != null) {
+            quizLoadingSubLabel.setText("Formulating questions and choices via Google Gemini...");
+        }
+        if (quizLoadingOverlay != null) {
+            quizLoadingOverlay.setVisible(true);
+            quizLoadingOverlay.setManaged(true);
+        }
+
+        final String finalSourceText = sourceText;
+        geminiApiService.generateQuizAsync(prompt, finalSourceText, numQuestions, difficulty, typeMode)
+                .thenAccept(session -> Platform.runLater(() -> {
+                    if (quizLoadingOverlay != null) {
+                        quizLoadingOverlay.setVisible(false);
+                        quizLoadingOverlay.setManaged(false);
+                    }
+                    this.currentQuizSession = session;
+                    renderQuizQuestions(session);
+                }))
+                .exceptionally(ex -> {
+                    Platform.runLater(() -> {
+                        if (quizLoadingOverlay != null) {
+                            quizLoadingOverlay.setVisible(false);
+                            quizLoadingOverlay.setManaged(false);
+                        }
+                        String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+                        showError("Quiz Generation Error", msg);
+                    });
+                    return null;
+                });
+    }
+
+    /**
+     * Renders the interactive question cards in quizQuestionsContainer.
+     */
+    private void renderQuizQuestions(QuizSession session) {
+        if (quizQuestionsContainer == null || session == null) return;
+        quizQuestionsContainer.getChildren().clear();
+
+        List<QuizQuestion> questions = session.getQuestions();
+        for (int i = 0; i < questions.size(); i++) {
+            final int qIndex = i;
+            final QuizQuestion q = questions.get(i);
+
+            VBox card = new VBox(12);
+            card.getStyleClass().add("quiz-question-card");
+
+            // Header row: Question Number & Badge
+            HBox cardHeader = new HBox(10);
+            cardHeader.setAlignment(Pos.CENTER_LEFT);
+
+            Label qNumLabel = new Label("Question " + (qIndex + 1) + " of " + questions.size());
+            qNumLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #1e293b;");
+
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+
+            Label badge = new Label(q.getType() == QuizQuestion.QuestionType.MCQ ? "Multiple Choice (1 pt)" : "Short Answer (5 pts)");
+            badge.getStyleClass().add("quiz-badge");
+
+            cardHeader.getChildren().addAll(qNumLabel, spacer, badge);
+
+            // Question prompt text
+            Label promptLabel = new Label(q.getQuestionText());
+            promptLabel.setWrapText(true);
+            promptLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #334155;");
+
+            card.getChildren().addAll(cardHeader, promptLabel);
+
+            if (q.getType() == QuizQuestion.QuestionType.MCQ) {
+                // 4 Interactive MCQ Cards
+                GridPane optionsGrid = new GridPane();
+                optionsGrid.setHgap(12);
+                optionsGrid.setVgap(10);
+
+                ColumnConstraints col1 = new ColumnConstraints();
+                col1.setPercentWidth(50);
+                ColumnConstraints col2 = new ColumnConstraints();
+                col2.setPercentWidth(50);
+                optionsGrid.getColumnConstraints().addAll(col1, col2);
+
+                List<HBox> optionCardBoxes = new ArrayList<>();
+
+                for (int optIdx = 0; optIdx < q.getOptions().size(); optIdx++) {
+                    final int currentOptIdx = optIdx;
+                    String optionText = q.getOptions().get(optIdx);
+
+                    HBox optCard = new HBox(10);
+                    optCard.setAlignment(Pos.CENTER_LEFT);
+                    optCard.getStyleClass().add("quiz-mcq-card");
+
+                    Label letter = new Label(QuizQuestion.getOptionLetter(currentOptIdx));
+                    letter.getStyleClass().add("quiz-option-letter");
+
+                    Label text = new Label(optionText);
+                    text.setWrapText(true);
+                    text.setStyle("-fx-font-size: 13px; -fx-text-fill: #1e293b;");
+                    HBox.setHgrow(text, Priority.ALWAYS);
+
+                    optCard.getChildren().addAll(letter, text);
+
+                    optCard.setOnMouseClicked(e -> {
+                        if (session.isSubmitted()) return; // locked after submission
+                        q.setUserSelectedOption(currentOptIdx);
+
+                        // Update selection styles
+                        for (int k = 0; k < optionCardBoxes.size(); k++) {
+                            HBox box = optionCardBoxes.get(k);
+                            Label l = (Label) box.getChildren().get(0);
+                            if (k == currentOptIdx) {
+                                box.getStyleClass().remove("quiz-mcq-card");
+                                if (!box.getStyleClass().contains("quiz-mcq-card-selected")) {
+                                    box.getStyleClass().add("quiz-mcq-card-selected");
+                                }
+                                l.getStyleClass().remove("quiz-option-letter");
+                                if (!l.getStyleClass().contains("quiz-option-letter-selected")) {
+                                    l.getStyleClass().add("quiz-option-letter-selected");
+                                }
+                            } else {
+                                box.getStyleClass().remove("quiz-mcq-card-selected");
+                                if (!box.getStyleClass().contains("quiz-mcq-card")) {
+                                    box.getStyleClass().add("quiz-mcq-card");
+                                }
+                                l.getStyleClass().remove("quiz-option-letter-selected");
+                                if (!l.getStyleClass().contains("quiz-option-letter")) {
+                                    l.getStyleClass().add("quiz-option-letter");
+                                }
+                            }
+                        }
+                        updateQuizProgressStatus();
+                    });
+
+                    optionCardBoxes.add(optCard);
+                    int row = optIdx / 2;
+                    int col = optIdx % 2;
+                    optionsGrid.add(optCard, col, row);
+                }
+
+                card.getChildren().add(optionsGrid);
+            } else {
+                // Short Answer Input Area
+                VBox saBox = new VBox(6);
+                Label ansLabel = new Label("Your Response:");
+                ansLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #64748b;");
+
+                TextArea saArea = new TextArea();
+                saArea.setPromptText("Type your detailed response here...");
+                saArea.setPrefRowCount(3);
+                saArea.setWrapText(true);
+                saArea.setStyle("-fx-background-color: #ffffff; -fx-border-color: #cbd5e1; -fx-border-radius: 6px; -fx-background-radius: 6px;");
+
+                saArea.textProperty().addListener((obs, oldVal, newVal) -> {
+                    q.setStudentAnswer(newVal);
+                    updateQuizProgressStatus();
+                });
+
+                saBox.getChildren().addAll(ansLabel, saArea);
+                card.getChildren().add(saBox);
+            }
+
+            quizQuestionsContainer.getChildren().add(card);
+        }
+
+        // Switch to Active screen
+        if (quizSetupScroll != null) {
+            quizSetupScroll.setVisible(false);
+            quizSetupScroll.setManaged(false);
+        }
+        if (quizActiveScroll != null) {
+            quizActiveScroll.setVisible(true);
+            quizActiveScroll.setManaged(true);
+            quizActiveScroll.setVvalue(0.0);
+        }
+        if (quizSubmitBtn != null) {
+            quizSubmitBtn.setVisible(true);
+            quizSubmitBtn.setManaged(true);
+        }
+        updateQuizProgressStatus();
+    }
+
+    /**
+     * Updates the progress label in bottom bar showing answered questions.
+     */
+    private void updateQuizProgressStatus() {
+        if (quizProgressLabel == null || currentQuizSession == null) return;
+        int total = currentQuizSession.getTotalQuestions();
+        int answered = currentQuizSession.getAnsweredCount();
+        quizProgressLabel.setText(String.format("Answered %d of %d questions", answered, total));
+    }
+
+    /**
+     * Call #2: Submits quiz, grades short answers with Gemini AI, and reveals results.
+     */
+    @FXML
+    public void handleSubmitQuiz() {
+        if (currentQuizSession == null) return;
+
+        int total = currentQuizSession.getTotalQuestions();
+        int answered = currentQuizSession.getAnsweredCount();
+        int unanswered = total - answered;
+
+        if (unanswered > 0) {
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Submit Quiz");
+            confirm.setHeaderText("Incomplete Quiz");
+            confirm.setContentText(String.format("You have %d unanswered question(s). Submit now anyway?", unanswered));
+            Optional<ButtonType> result = confirm.showAndWait();
+            if (result.isEmpty() || result.get() != ButtonType.OK) {
+                return;
+            }
+        }
+
+        // If there are short answer questions, Call #2 is executed to grade them via Gemini
+        if (currentQuizSession.hasShortAnswerQuestions()) {
+            if (quizLoadingLabel != null) {
+                quizLoadingLabel.setText("Evaluating your responses...");
+            }
+            if (quizLoadingSubLabel != null) {
+                quizLoadingSubLabel.setText("Gemini AI is reviewing your short answers and preparing personalized feedback...");
+            }
+            if (quizLoadingOverlay != null) {
+                quizLoadingOverlay.setVisible(true);
+                quizLoadingOverlay.setManaged(true);
+            }
+
+            geminiApiService.gradeShortAnswersAsync(currentQuizSession)
+                    .thenRun(() -> Platform.runLater(() -> {
+                        if (quizLoadingOverlay != null) {
+                            quizLoadingOverlay.setVisible(false);
+                            quizLoadingOverlay.setManaged(false);
+                        }
+                        currentQuizSession.setSubmitted(true);
+                        revealQuizResults(currentQuizSession);
+                    }))
+                    .exceptionally(ex -> {
+                        Platform.runLater(() -> {
+                            if (quizLoadingOverlay != null) {
+                                quizLoadingOverlay.setVisible(false);
+                                quizLoadingOverlay.setManaged(false);
+                            }
+                            String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+                            showError("Grading Error", "Could not complete AI grading: " + msg);
+                        });
+                        return null;
+                    });
+        } else {
+            // MCQ only: graded instantly and locally (Call #2 skipped!)
+            currentQuizSession.setSubmitted(true);
+            revealQuizResults(currentQuizSession);
+        }
+    }
+
+    /**
+     * Renders score summary banner, highlights right/wrong cards, and displays explanations & feedback.
+     */
+    private void revealQuizResults(QuizSession session) {
+        if (quizQuestionsContainer == null || session == null) return;
+
+        if (quizSubmitBtn != null) {
+            quizSubmitBtn.setVisible(false);
+            quizSubmitBtn.setManaged(false);
+        }
+
+        int totalEarned = session.getTotalScoreEarned();
+        int totalMax = session.getTotalMaxScore();
+        int pct = session.getPercentageScore();
+        String grade = session.getGradeLetter();
+
+        // Banner Card at top of questions container
+        VBox banner = new VBox(10);
+        banner.getStyleClass().add("quiz-result-banner");
+
+        HBox bannerTop = new HBox(12);
+        bannerTop.setAlignment(Pos.CENTER_LEFT);
+
+        Label congratsIcon = new Label(pct >= 80 ? "🏆" : pct >= 60 ? "🎉" : "📚");
+        congratsIcon.setStyle("-fx-font-size: 32px;");
+
+        VBox bannerTexts = new VBox(3);
+        Label bannerTitle = new Label("Quiz Results: " + pct + "% (Grade " + grade + ")");
+        bannerTitle.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #ffffff;");
+        Label bannerSub = new Label(String.format("You scored %d out of %d total points.", totalEarned, totalMax));
+        bannerSub.setStyle("-fx-font-size: 13px; -fx-text-fill: #e0e7ff;");
+        bannerTexts.getChildren().addAll(bannerTitle, bannerSub);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        HBox statsPills = new HBox(8);
+        statsPills.setAlignment(Pos.CENTER_RIGHT);
+        if (session.getMcqCount() > 0) {
+            Label mcqPill = new Label("MCQ: " + session.getCorrectMcqCount() + "/" + session.getMcqCount());
+            mcqPill.setStyle("-fx-background-color: rgba(255, 255, 255, 0.2); -fx-text-fill: #ffffff; -fx-font-weight: bold; -fx-background-radius: 20px; -fx-padding: 4px 10px;");
+            statsPills.getChildren().add(mcqPill);
+        }
+        if (session.getShortAnswerCount() > 0) {
+            Label saPill = new Label("Short Ans: " + session.getShortAnswerCount() + " evaluated");
+            saPill.setStyle("-fx-background-color: rgba(255, 255, 255, 0.2); -fx-text-fill: #ffffff; -fx-font-weight: bold; -fx-background-radius: 20px; -fx-padding: 4px 10px;");
+            statsPills.getChildren().add(saPill);
+        }
+
+        bannerTop.getChildren().addAll(congratsIcon, bannerTexts, spacer, statsPills);
+        banner.getChildren().add(bannerTop);
+
+        quizQuestionsContainer.getChildren().add(0, banner);
+
+        // Update each question card in review mode
+        List<QuizQuestion> questions = session.getQuestions();
+        // Since banner is at index 0, question cards start at index 1
+        for (int i = 0; i < questions.size(); i++) {
+            QuizQuestion q = questions.get(i);
+            VBox card = (VBox) quizQuestionsContainer.getChildren().get(i + 1);
+
+            if (q.getType() == QuizQuestion.QuestionType.MCQ) {
+                // Highlight options
+                GridPane optionsGrid = null;
+                for (Node child : card.getChildren()) {
+                    if (child instanceof GridPane) {
+                        optionsGrid = (GridPane) child;
+                        break;
+                    }
+                }
+                if (optionsGrid != null) {
+                    for (Node n : optionsGrid.getChildren()) {
+                        if (n instanceof HBox) {
+                            HBox optBox = (HBox) n;
+                            Integer optIdx = GridPane.getRowIndex(n) != null && GridPane.getColumnIndex(n) != null
+                                    ? (GridPane.getRowIndex(n) * 2 + GridPane.getColumnIndex(n)) : null;
+                            if (optIdx != null) {
+                                optBox.getStyleClass().removeAll("quiz-mcq-card-selected", "quiz-mcq-card");
+                                if (optIdx == q.getCorrectIndex()) {
+                                    optBox.getStyleClass().add("quiz-mcq-card-correct");
+                                    Label txt = (Label) optBox.getChildren().get(1);
+                                    txt.setText(txt.getText() + "  ✓ (Correct Answer)");
+                                    txt.setStyle("-fx-font-size: 13px; -fx-text-fill: #065f46; -fx-font-weight: bold;");
+                                } else if (q.getUserSelectedOption() != null && optIdx.equals(q.getUserSelectedOption())) {
+                                    optBox.getStyleClass().add("quiz-mcq-card-incorrect");
+                                    Label txt = (Label) optBox.getChildren().get(1);
+                                    txt.setText(txt.getText() + "  ✕ (Your Answer)");
+                                    txt.setStyle("-fx-font-size: 13px; -fx-text-fill: #991b1b;");
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Add Explanation box
+                if (q.getExplanation() != null && !q.getExplanation().trim().isEmpty()) {
+                    VBox explBox = new VBox(4);
+                    explBox.getStyleClass().add("quiz-explanation-box");
+                    Label explTitle = new Label("💡 Explanation:");
+                    explTitle.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #4338ca;");
+                    Label explText = new Label(q.getExplanation());
+                    explText.setWrapText(true);
+                    explText.setStyle("-fx-font-size: 12px; -fx-text-fill: #334155;");
+                    explBox.getChildren().addAll(explTitle, explText);
+                    card.getChildren().add(explBox);
+                }
+            } else {
+                // Short answer review
+                VBox saBox = null;
+                for (Node child : card.getChildren()) {
+                    if (child instanceof VBox) {
+                        saBox = (VBox) child;
+                        break;
+                    }
+                }
+                if (saBox != null) {
+                    for (Node saChild : saBox.getChildren()) {
+                        if (saChild instanceof TextArea) {
+                            ((TextArea) saChild).setEditable(false);
+                        }
+                    }
+                }
+
+                // AI Feedback Box
+                VBox fbBox = new VBox(6);
+                fbBox.getStyleClass().add("quiz-feedback-box");
+
+                HBox fbHeader = new HBox(8);
+                fbHeader.setAlignment(Pos.CENTER_LEFT);
+                Label fbIcon = new Label("🤖 AI Feedback:");
+                fbIcon.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #065f46;");
+                Region sp = new Region();
+                HBox.setHgrow(sp, Priority.ALWAYS);
+                Label scorePill = new Label("Score: " + q.getAwardedScore() + " / " + q.getMaxScore() + " pts");
+                scorePill.setStyle("-fx-background-color: #dcfce7; -fx-text-fill: #166534; -fx-font-weight: bold; -fx-background-radius: 10px; -fx-padding: 2px 8px; -fx-font-size: 11px;");
+                fbHeader.getChildren().addAll(fbIcon, sp, scorePill);
+
+                Label fbText = new Label(q.getAiFeedback().isEmpty() ? "No feedback returned." : q.getAiFeedback());
+                fbText.setWrapText(true);
+                fbText.setStyle("-fx-font-size: 12px; -fx-text-fill: #1e293b;");
+
+                Label rubricText = new Label("Expected Key Points: " + q.getRubric());
+                rubricText.setWrapText(true);
+                rubricText.setStyle("-fx-font-size: 11px; -fx-text-fill: #64748b; -fx-font-style: italic;");
+
+                fbBox.getChildren().addAll(fbHeader, fbText, rubricText);
+                card.getChildren().add(fbBox);
+            }
+        }
+
+        if (quizActiveScroll != null) {
+            quizActiveScroll.setVvalue(0.0);
+        }
+        if (quizProgressLabel != null) {
+            quizProgressLabel.setText(String.format("🎉 Quiz Completed! Final Score: %d / %d (%d%%)", totalEarned, totalMax, pct));
+        }
+    }
+
+    /**
+     * Resets the quiz view back to the setup configuration screen.
+     */
+    @FXML
+    public void handleResetQuiz() {
+        this.currentQuizSession = null;
+        if (quizQuestionsContainer != null) {
+            quizQuestionsContainer.getChildren().clear();
+        }
+        if (quizActiveScroll != null) {
+            quizActiveScroll.setVisible(false);
+            quizActiveScroll.setManaged(false);
+        }
+        if (quizSetupScroll != null) {
+            quizSetupScroll.setVisible(true);
+            quizSetupScroll.setManaged(true);
+        }
+        if (quizSubmitBtn != null) {
+            quizSubmitBtn.setVisible(false);
+            quizSubmitBtn.setManaged(false);
+        }
+        if (quizProgressLabel != null) {
+            quizProgressLabel.setText("Ready to create quiz");
+        }
     }
 
     /**
@@ -509,6 +1187,10 @@ public class HelloController {
         if (notebookWorkspaceView != null) {
             notebookWorkspaceView.setVisible(true);
             notebookWorkspaceView.setManaged(true);
+        }
+        if (quizView != null) {
+            quizView.setVisible(false);
+            quizView.setManaged(false);
         }
         if (rightToggleBtn != null) {
             rightToggleBtn.setVisible(false);

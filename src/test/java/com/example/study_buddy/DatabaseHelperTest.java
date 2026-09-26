@@ -569,7 +569,8 @@ public class DatabaseHelperTest {
         assertEquals(2, tasks.size(), "Should have retrieved 2 calendar tasks");
 
         RoutineTaskItem task1 = tasks.get(0);
-        assertEquals("Midterm Review Presentation", task1.getActivityType());
+        assertEquals("Presentation - Midterm Review Presentation", task1.getActivityType());
+        assertEquals("Midterm Review Presentation", task1.getParsedTitle());
         assertEquals("Math 2207", task1.getSubjectName());
         assertEquals("Prepare slides 1 to 20", task1.getNotes());
         assertNotNull(task1.getDeadlineDate());
@@ -578,7 +579,8 @@ public class DatabaseHelperTest {
         assertEquals("10:30 AM", task1.getFormattedTime());
 
         RoutineTaskItem task2 = tasks.get(1);
-        assertEquals("Lab Report 2", task2.getActivityType());
+        assertEquals("Assignment - Lab Report 2", task2.getActivityType());
+        assertEquals("Lab Report 2", task2.getParsedTitle());
         assertEquals("CSE 2100", task2.getSubjectName());
         assertEquals("2026-10-22", task2.getDeadlineDate().toString());
         assertEquals("Thursday", task2.getWeekdayDisplay());
@@ -612,7 +614,8 @@ public class DatabaseHelperTest {
 
         List<RoutineTaskItem> afterDelete = DatabaseHelper.getUserCalendarTasks(user.getId());
         assertEquals(1, afterDelete.size(), "Should have 1 task remaining after deletion");
-        assertEquals("Lab Report 2", afterDelete.get(0).getActivityType());
+        assertEquals("Assignment - Lab Report 2", afterDelete.get(0).getActivityType());
+        assertEquals("Lab Report 2", afterDelete.get(0).getParsedTitle());
 
         // Delete task 2 via unified deleteRoutineActivity
         boolean deleted2 = DatabaseHelper.deleteRoutineActivity(task2.getActivityId());
