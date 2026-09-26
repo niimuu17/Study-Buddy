@@ -351,16 +351,17 @@ public class HelloController {
         }
 
         for (Notebook nb : notebooks) {
-            VBox card = createNotebookCard(nb);
+            Node card = createNotebookCard(nb);
             notebooksGrid.getChildren().add(card);
         }
     }
 
     /**
      * Constructs a modern interactive card for a single notebook.
+     * The 3-dot options button is pinned to the top-right corner of the card.
      */
-    private VBox createNotebookCard(Notebook notebook) {
-        VBox card = new VBox();
+    private Node createNotebookCard(Notebook notebook) {
+        StackPane card = new StackPane();
         card.setPrefSize(224, 128);
         card.setMinSize(224, 128);
         card.setMaxSize(224, 128);
@@ -380,9 +381,10 @@ public class HelloController {
         body.setPadding(new Insets(9, 11, 9, 11));
         VBox.setVgrow(body, Priority.ALWAYS);
 
-        // Header Row: Color dot + Title + Context Menu (Edit, Delete)
+        // Header Row: Color dot + Title (with right padding so it leaves space for the 3-dot button)
         HBox headerRow = new HBox(6);
         headerRow.setAlignment(Pos.CENTER_LEFT);
+        headerRow.setPadding(new Insets(0, 24, 0, 0));
 
         Label dot = new Label("●");
         dot.setStyle("-fx-font-size: 12px; -fx-text-fill: " + themeColor + ";");
@@ -391,9 +393,13 @@ public class HelloController {
         titleLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #1e293b;");
         HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
-        // Menu button (3 dots)
+        headerRow.getChildren().addAll(dot, titleLabel);
+
+        // Menu button (3 dots) pinned directly to top-right of the card
         Button optionsBtn = new Button("⋮");
-        optionsBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #64748b; -fx-font-size: 14px; -fx-font-weight: bold; -fx-padding: 0 3px; -fx-cursor: hand;");
+        optionsBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #64748b; -fx-font-size: 14px; -fx-font-weight: bold; -fx-padding: 0 4px; -fx-cursor: hand;");
+        StackPane.setAlignment(optionsBtn, Pos.TOP_RIGHT);
+        StackPane.setMargin(optionsBtn, new Insets(8, 8, 0, 0));
 
         ContextMenu menu = new ContextMenu();
         MenuItem editItem = new MenuItem("✏ Edit Details");
@@ -419,8 +425,6 @@ public class HelloController {
 
         menu.getItems().addAll(editItem, new SeparatorMenuItem(), deleteItem);
         optionsBtn.setOnAction(e -> menu.show(optionsBtn, javafx.geometry.Side.BOTTOM, 0, 0));
-
-        headerRow.getChildren().addAll(dot, titleLabel, optionsBtn);
 
         // Description
         Label descLabel = new Label(notebook.getDescription() != null && !notebook.getDescription().isEmpty()
@@ -453,7 +457,11 @@ public class HelloController {
         footer.getChildren().addAll(statsLabel, footerSpacer, openArrow);
 
         body.getChildren().addAll(headerRow, descLabel, spacer, footer);
-        card.getChildren().addAll(accentStripe, body);
+
+        VBox contentBox = new VBox();
+        contentBox.getChildren().addAll(accentStripe, body);
+
+        card.getChildren().addAll(contentBox, optionsBtn);
 
         // Card Click opens the notebook
         card.setOnMouseClicked(e -> {

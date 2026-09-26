@@ -134,7 +134,9 @@ public class TaskDetailDialog {
         editBtn.setStyle("-fx-background-color: #e0e7ff; -fx-text-fill: #4338ca; -fx-font-weight: bold; -fx-background-radius: 6px; -fx-padding: 8px 14px; -fx-cursor: hand;");
         editBtn.setOnAction(e -> {
             dialog.close();
-            CalendarTaskDialog.show(owner, userId, task.getDeadlineDate(), task, onAction);
+            javafx.application.Platform.runLater(() -> {
+                CalendarTaskDialog.show(owner, userId, task.getDeadlineDate(), task, onAction);
+            });
         });
 
         Button closeBtn = new Button("Close");

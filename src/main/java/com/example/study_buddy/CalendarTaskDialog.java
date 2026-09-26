@@ -180,13 +180,24 @@ public class CalendarTaskDialog {
             String displaySubject = subject.isEmpty() ? "General" : subject;
 
             if (isEditing) {
-                DatabaseHelper.updateAnyTask(existingTask.getActivityId(), displayTitle, displaySubject, actType, date.toString(), time, notes);
+                if (existingTask.getSlotId() > 0) {
+                    // Legacy routine activity: promote to first-class calendar task with full subject, notes, time, date support
+                    DatabaseHelper.deleteRoutineActivity(existingTask.getActivityId());
+                    DatabaseHelper.createCalendarTask(userId, displayTitle, displaySubject, actType, date.toString(), time, notes);
+                } else {
+                    boolean ok = DatabaseHelper.updateCalendarTask(existingTask.getActivityId(), displayTitle, displaySubject, actType, date.toString(), time, notes);
+                    if (!ok) {
+                        DatabaseHelper.updateAnyTask(existingTask.getActivityId(), displayTitle, displaySubject, actType, date.toString(), time, notes);
+                    }
+                }
             } else {
                 DatabaseHelper.createCalendarTask(userId, displayTitle, displaySubject, actType, date.toString(), time, notes);
             }
 
-            if (onSaved != null) onSaved.run();
             dialog.close();
+            if (onSaved != null) {
+                javafx.application.Platform.runLater(onSaved);
+            }
         });
 
         Region spacer = new Region();
