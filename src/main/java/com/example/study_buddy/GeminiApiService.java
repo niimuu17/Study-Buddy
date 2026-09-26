@@ -25,8 +25,13 @@ import java.util.concurrent.CompletableFuture;
  */
 public class GeminiApiService {
 
-    private static final String GEMINI_API_URL =
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+    private static final String BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
+    private static final String[] CANDIDATE_MODELS = {
+            "gemini-3.8-flash",
+            "gemini-flash-latest",
+            "gemini-2.5-flash",
+            "gemini-1.5-flash"
+    };
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -232,35 +237,47 @@ public class GeminiApiService {
 
     /**
      * Executes the HTTP POST request to the Google Gemini API.
+     * Iterates through candidate models in order (e.g. gemini-3.8-flash, gemini-flash-latest),
+     * automatically falling back if a model version is deprecated or not found (404).
      */
     private String sendGeminiRequest(String apiKey, String jsonBody) throws IOException, InterruptedException {
-        String fullUrl = GEMINI_API_URL + "?key=" + apiKey;
+        String lastErrorMsg = "";
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(fullUrl))
-                .header("Content-Type", "application/json")
-                .timeout(Duration.ofSeconds(45))
-                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                .build();
+        for (String model : CANDIDATE_MODELS) {
+            String fullUrl = BASE_URL + model + ":generateContent?key=" + apiKey;
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(fullUrl))
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(45))
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
 
-        if (response.statusCode() != 200) {
-            String errorMsg = "Gemini API error (HTTP " + response.statusCode() + "): ";
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                return response.body();
+            }
+
+            lastErrorMsg = "Gemini API error (HTTP " + response.statusCode() + "): ";
             try {
                 JsonNode errNode = objectMapper.readTree(response.body());
                 if (errNode.has("error") && errNode.get("error").has("message")) {
-                    errorMsg += errNode.get("error").get("message").asText();
+                    lastErrorMsg += errNode.get("error").get("message").asText();
                 } else {
-                    errorMsg += response.body();
+                    lastErrorMsg += response.body();
                 }
             } catch (Exception ignored) {
-                errorMsg += response.body();
+                lastErrorMsg += response.body();
             }
-            throw new IOException(errorMsg);
+
+            // If error is not a 404 model not found (e.g. invalid key 403, quota exceeded 429), don't retry other models
+            if (response.statusCode() != 404) {
+                throw new IOException(lastErrorMsg);
+            }
         }
 
-        return response.body();
+        throw new IOException(lastErrorMsg);
     }
 
     /**
